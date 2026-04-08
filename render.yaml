@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: smartsalary-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false

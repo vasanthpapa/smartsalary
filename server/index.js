@@ -92,6 +92,10 @@ const getEmployees = async () => {
 };
 
 // --- Routes ---
+app.get('/health', (req, res) => {
+    res.json({ ok: true });
+});
+
 app.get('/api/employees', async (req, res) => {
     try {
         res.json(await getEmployees());

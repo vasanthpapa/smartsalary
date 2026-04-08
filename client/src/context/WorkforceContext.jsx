@@ -4,14 +4,16 @@ import io from 'socket.io-client';
 
 const WorkforceContext = createContext();
 const LOCAL_CACHE_KEY = 'wf_data_cache';
+const configuredApiBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 
 // Constants
 export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 export const DAYNAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const DAYSHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-// In development, Vite proxies these paths to the backend target configured in the root env. In production, they go to the same origin.
-const API_BASE = '';
+// In development, leave this empty so Vite can proxy to the local backend.
+// In production, set VITE_API_BASE_URL to your deployed backend URL.
+const API_BASE = configuredApiBase;
 
 const defaultRules = { grace: 15, lateN: 3, lateType: 'halfday', lateFixed: 500 };
 
