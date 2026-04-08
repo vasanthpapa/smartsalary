@@ -6,6 +6,7 @@ const Employees = () => {
     const { employees, saveEmployees } = useWorkforce();
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingEmp, setEditingEmp] = useState(null);
+    const [saving, setSaving] = useState(false);
     
     // Form State
     const [formData, setFormData] = useState({
@@ -49,7 +50,15 @@ const Employees = () => {
     const handleDelete = async (id) => {
         if (!confirm("Are you sure you want to delete this employee?")) return;
         const newEmployees = employees.filter(e => e.id !== id);
-        await saveEmployees(newEmployees);
+        try {
+            setSaving(true);
+            await saveEmployees(newEmployees);
+        } catch (error) {
+            console.error('Delete employee failed:', error);
+            alert(error?.response?.data?.error || 'Unable to delete employee. Please try again.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const toggleWeekoff = (dayIdx) => {
@@ -75,8 +84,16 @@ const Employees = () => {
             newEmployees = [...employees, newEmp];
         }
 
-        await saveEmployees(newEmployees);
-        setIsFormOpen(false);
+        try {
+            setSaving(true);
+            await saveEmployees(newEmployees);
+            setIsFormOpen(false);
+        } catch (error) {
+            console.error('Save employee failed:', error);
+            alert(error?.response?.data?.error || 'Unable to save employee. Please try again.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -135,8 +152,10 @@ const Employees = () => {
                         </div>
 
                         <div className="action-row" style={{ marginTop: '1.5rem', display: 'flex', gap: '10px' }}>
-                            <button className="primary-btn small-btn" onClick={handleSave}>Save Employee</button>
-                            <button className="secondary-btn small-btn" onClick={() => setIsFormOpen(false)}>Cancel</button>
+                            <button className="primary-btn small-btn" onClick={handleSave} disabled={saving}>
+                                {saving ? 'Saving...' : 'Save Employee'}
+                            </button>
+                            <button className="secondary-btn small-btn" onClick={() => setIsFormOpen(false)} disabled={saving}>Cancel</button>
                         </div>
                     </div>
                 )}
@@ -177,7 +196,7 @@ const Employees = () => {
                                     <td>
                                         <div style={{ display: 'flex', gap: '8px' }}>
                                             <button className="btn-icon" onClick={() => handleEdit(emp)}><Edit2 size={16} /></button>
-                                            <button className="btn-icon delete" onClick={() => handleDelete(emp.id)}><Trash2 size={16} /></button>
+                                            <button className="btn-icon delete" onClick={() => handleDelete(emp.id)} disabled={saving}><Trash2 size={16} /></button>
                                         </div>
                                     </td>
                                 </tr>
