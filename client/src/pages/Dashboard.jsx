@@ -17,14 +17,14 @@ const Dashboard = () => {
 
     const stats = useMemo(() => {
         const present = todayAttendance.filter(row => row.status === 'present' || row.status === 'late').length;
-        const late = todayAttendance.filter(row => row.status === 'late').length;
+        const weekoffToday = todayAttendance.filter(row => row.status === 'weekoff').length;
         const sickToday = todayAttendance.filter(row => row.status === 'sick_leave').length;
         const holidayToday = todayAttendance.filter(row => row.status === 'holiday').length;
 
         return [
             { label: 'Total Employees', value: (employees || []).length, sub: 'Staff members' },
             { label: 'Present Today', value: present, sub: 'Marked present' },
-            { label: 'Late Today', value: late, sub: 'After grace time' },
+            { label: 'Week-off', value: weekoffToday, sub: 'Weekly off' },
             { label: 'Sick Leave Today', value: sickToday, sub: 'Medical' },
             { label: 'Holiday Today', value: holidayToday, sub: 'Special' }
         ];
