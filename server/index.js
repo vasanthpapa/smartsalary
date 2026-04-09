@@ -13,6 +13,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 const PORT = Number(process.env.PORT) || 3000;
 const MONGO_URI = process.env.MONGO_URI;
 const HAS_MONGO_URI = Boolean(MONGO_URI) && !MONGO_URI.includes("REPLACE_WITH");
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Middleware
 app.use(cors());
@@ -48,19 +49,82 @@ let mockEmployees = [
 let mockAttendance = {};
 let mockRules = { grace: 10, lateN: 3, lateType: 'halfday', lateFixed: 500 };
 
-const shouldUseMockStore = () => !HAS_MONGO_URI || mongoose.connection.readyState !== 1;
+let mongoConnectPromise = null;
+let lastMongoError = null;
+const shouldUseMockStore = () => !HAS_MONGO_URI;
+
+const createStorageStatus = (overrides = {}) => ({
+    mode: shouldUseMockStore() ? 'mock' : 'mongo',
+    persistent: !shouldUseMockStore(),
+    available: shouldUseMockStore() || mongoose.connection.readyState === 1,
+    message: shouldUseMockStore()
+        ? 'Demo mode is active. Configure MONGO_URI to keep data permanently.'
+        : (lastMongoError?.message || null),
+    ...overrides
+});
+
+const connectToMongo = async () => {
+    if (!HAS_MONGO_URI) return false;
+    if (mongoose.connection.readyState === 1) return true;
+    if (mongoConnectPromise) return mongoConnectPromise;
+
+    mongoConnectPromise = mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
+        .then(() => {
+            lastMongoError = null;
+            console.log('Connected to MongoDB Atlas');
+            return true;
+        })
+        .catch(err => {
+            lastMongoError = err;
+            console.error('MongoDB connection failed:', err.message);
+            return false;
+        })
+        .finally(() => {
+            mongoConnectPromise = null;
+        });
+
+    return mongoConnectPromise;
+};
+
+const ensurePersistentStore = async () => {
+    if (shouldUseMockStore()) return false;
+    if (mongoose.connection.readyState === 1) return true;
+    return await connectToMongo();
+};
+
+const getStorageStatus = async () => {
+    if (shouldUseMockStore()) {
+        return createStorageStatus();
+    }
+
+    const connected = await ensurePersistentStore();
+    if (connected) {
+        return createStorageStatus({ mode: 'mongo', persistent: true, available: true, message: null });
+    }
+
+    return createStorageStatus({
+        mode: 'mongo_unavailable',
+        persistent: true,
+        available: false,
+        message: 'MongoDB is configured but not reachable right now. Live saves are paused until the database reconnects.'
+    });
+};
+
+const respondStorageUnavailable = async (res) => {
+    const storage = await getStorageStatus();
+    return res.status(503).json({
+        error: storage.message || 'Persistent storage is temporarily unavailable.',
+        code: 'STORAGE_UNAVAILABLE',
+        storage
+    });
+};
 
 // MongoDB Connection
 if (HAS_MONGO_URI) {
-    mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
-        .then(() => console.log('Connected to MongoDB Atlas'))
-        .catch(err => {
-            console.error('MongoDB unavailable. Falling back to in-memory mock data.');
-            console.error('MongoDB Error:', err.message);
-        });
+    connectToMongo();
 
     mongoose.connection.on('disconnected', () => {
-        console.warn('MongoDB disconnected. Using in-memory mock data until the connection returns.');
+        console.warn('MongoDB disconnected. Live saves are paused until the connection returns.');
     });
 } else {
     console.warn('MONGO_URI not configured. Using in-memory mock data.');
@@ -92,12 +156,21 @@ const getEmployees = async () => {
 };
 
 // --- Routes ---
-app.get('/health', (req, res) => {
-    res.json({ ok: true });
+app.get('/health', async (req, res) => {
+    const storage = await getStorageStatus();
+    res.json({ ok: true, storage });
+});
+
+app.get('/api/system/status', async (req, res) => {
+    const storage = await getStorageStatus();
+    res.json({ storage, environment: IS_PRODUCTION ? 'production' : 'development' });
 });
 
 app.get('/api/employees', async (req, res) => {
     try {
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
         res.json(await getEmployees());
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -107,6 +180,9 @@ app.post('/api/employees/sync', async (req, res) => {
         const { employees } = req.body;
         if (shouldUseMockStore()) mockEmployees = employees;
         else {
+            if (!(await ensurePersistentStore())) {
+                return await respondStorageUnavailable(res);
+            }
             await Employee.deleteMany({ id: { $nin: employees.map(emp => emp.id) } });
             for (let emp of employees) {
                 await Employee.findOneAndUpdate({ id: emp.id }, emp, { upsert: true, new: true });
@@ -120,6 +196,9 @@ app.post('/api/employees/sync', async (req, res) => {
 app.get('/api/attendance', async (req, res) => {
     try {
         if (shouldUseMockStore()) return res.json(mockAttendance);
+        if (!(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
         const data = await Attendance.find();
         const map = {};
         data.forEach(a => { if (!map[a.date]) map[a.date] = {}; map[a.date][a.employeeId] = { status: a.status, time: a.time }; });
@@ -134,6 +213,9 @@ app.post('/api/attendance', async (req, res) => {
             if (!mockAttendance[record.date]) mockAttendance[record.date] = {};
             mockAttendance[record.date][record.employeeId] = { status: record.status, time: record.time };
         } else {
+            if (!(await ensurePersistentStore())) {
+                return await respondStorageUnavailable(res);
+            }
             await Attendance.findOneAndUpdate(
                 { date: record.date, employeeId: record.employeeId },
                 record,
@@ -151,6 +233,9 @@ app.post('/api/attendance/bulk', async (req, res) => {
         if (shouldUseMockStore()) {
             records.forEach(rec => { if (!mockAttendance[rec.date]) mockAttendance[rec.date] = {}; mockAttendance[rec.date][rec.employeeId] = { status: rec.status, time: rec.time }; });
         } else {
+            if (!(await ensurePersistentStore())) {
+                return await respondStorageUnavailable(res);
+            }
             for (let rec of records) await Attendance.findOneAndUpdate({ date: rec.date, employeeId: rec.employeeId }, rec, { upsert: true });
         }
         io.emit('state_changed', { type: 'attendance' });
@@ -161,6 +246,9 @@ app.post('/api/attendance/bulk', async (req, res) => {
 app.get('/api/rules', async (req, res) => {
     try {
         if (shouldUseMockStore()) return res.json(mockRules);
+        if (!(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
         const r = await Rules.findOne(); res.json(r || mockRules);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -168,7 +256,12 @@ app.get('/api/rules', async (req, res) => {
 app.post('/api/rules', async (req, res) => {
     try {
         if (shouldUseMockStore()) Object.assign(mockRules, req.body);
-        else await Rules.findOneAndUpdate({}, req.body, { upsert: true });
+        else {
+            if (!(await ensurePersistentStore())) {
+                return await respondStorageUnavailable(res);
+            }
+            await Rules.findOneAndUpdate({}, req.body, { upsert: true });
+        }
         io.emit('state_changed', { type: 'rules' });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
