@@ -4,7 +4,6 @@ import io from 'socket.io-client';
 import { API_BASE, defaultRules, WorkforceContext } from './workforceShared';
 
 const LOCAL_CACHE_KEY = 'wf_data_cache';
-const LOCAL_SYNC_META_KEY = 'wf_sync_meta';
 const DEFAULT_STORAGE_STATUS = {
     mode: API_BASE ? 'checking' : 'mock',
     persistent: !API_BASE,
@@ -33,25 +32,6 @@ const readCachedState = () => {
     }
 };
 
-const readSyncMeta = () => {
-    if (typeof window === 'undefined') {
-        return { hasPendingSync: false };
-    }
-
-    try {
-        const raw = localStorage.getItem(LOCAL_SYNC_META_KEY);
-        if (!raw) return { hasPendingSync: false };
-
-        const parsed = JSON.parse(raw);
-        return {
-            hasPendingSync: Boolean(parsed.hasPendingSync)
-        };
-    } catch (error) {
-        console.error('Unable to read sync metadata:', error);
-        return { hasPendingSync: false };
-    }
-};
-
 const mergeAttendanceRecord = (prevAttendance, record) => ({
     ...prevAttendance,
     [record.date]: {
@@ -65,11 +45,9 @@ const mergeAttendanceRecord = (prevAttendance, record) => ({
 
 const mergeAttendanceRecords = (prevAttendance, records) => {
     let nextAttendance = prevAttendance;
-
     records.forEach(record => {
         nextAttendance = mergeAttendanceRecord(nextAttendance, record);
     });
-
     return nextAttendance;
 };
 
@@ -79,33 +57,31 @@ const getErrorMessage = (error, fallbackMessage) => (
     fallbackMessage
 );
 
-const isRecoverableSyncFailure = (error) => (
-    !error?.response ||
-    error?.response?.data?.code === 'STORAGE_UNAVAILABLE' ||
-    error?.response?.status === 503
-);
-
-const flattenAttendanceMap = (attendanceMap) => (
-    Object.entries(attendanceMap).flatMap(([date, entries]) => (
-        Object.entries(entries || {}).map(([employeeId, record]) => ({
-            date,
-            employeeId,
-            status: record.status,
-            time: record.time
-        }))
-    ))
-);
+// Restore all cached attendance records back to the server (bulk push)
+const restoreAttendanceToServer = async (attendanceData) => {
+    const records = [];
+    Object.entries(attendanceData).forEach(([date, empMap]) => {
+        if (!empMap || typeof empMap !== 'object') return;
+        Object.entries(empMap).forEach(([employeeId, data]) => {
+            if (data?.status) {
+                records.push({ date, employeeId, status: data.status, time: data.time || '' });
+            }
+        });
+    });
+    if (records.length > 0) {
+        await axios.post(`${API_BASE}/api/attendance/bulk`, { records });
+        console.log(`✅ Restored ${records.length} attendance records from local cache to server.`);
+    }
+};
 
 export const WorkforceProvider = ({ children }) => {
     const cachedState = readCachedState();
-    const cachedSyncMeta = readSyncMeta();
     const [employees, setEmployees] = useState(cachedState.employees);
     const [attendance, setAttendance] = useState(cachedState.attendance);
     const [rules, setRules] = useState(cachedState.rules);
     const [loading, setLoading] = useState(true);
     const [storageStatus, setStorageStatus] = useState(DEFAULT_STORAGE_STATUS);
     const [syncError, setSyncError] = useState(null);
-    const [hasPendingSync, setHasPendingSync] = useState(cachedSyncMeta.hasPendingSync);
 
     const fetchStorageStatus = useCallback(async () => {
         try {
@@ -131,45 +107,12 @@ export const WorkforceProvider = ({ children }) => {
         setSyncError(getErrorMessage(error, fallbackMessage));
     }, []);
 
-    const markPendingSync = useCallback((message) => {
-        setHasPendingSync(true);
-        setSyncError(message || 'Saved on this device only. Backend sync is unavailable right now.');
-    }, []);
-
-    const clearPendingSync = useCallback(() => {
-        setHasPendingSync(false);
-        setSyncError(null);
-    }, []);
-
-    const syncPendingChanges = useCallback(async (nextStatus) => {
-        const resolvedStatus = nextStatus || await fetchStorageStatus();
-        if (resolvedStatus?.persistent && resolvedStatus?.available === false) {
-            markPendingSync('Saved on this device only. Retry sync when the backend is available.');
-            return false;
-        }
-
-        await axios.post(`${API_BASE}/api/employees/sync`, { employees });
-        await axios.post(`${API_BASE}/api/attendance/bulk`, { records: flattenAttendanceMap(attendance) });
-        await axios.post(`${API_BASE}/api/rules`, rules);
-        clearPendingSync();
-        return true;
-    }, [attendance, clearPendingSync, employees, fetchStorageStatus, markPendingSync, rules]);
-
     const refreshData = useCallback(async () => {
         try {
             const nextStatus = await fetchStorageStatus();
             if (nextStatus?.persistent && nextStatus?.available === false) {
-                if (hasPendingSync) {
-                    markPendingSync('Saved on this device only. Retry sync when the backend is available.');
-                } else {
-                    setSyncError(nextStatus.message || 'Persistent storage is temporarily unavailable.');
-                }
+                setSyncError(nextStatus.message || 'Persistent storage is temporarily unavailable.');
                 return;
-            }
-
-            if (hasPendingSync) {
-                const syncCompleted = await syncPendingChanges(nextStatus);
-                if (!syncCompleted) return;
             }
 
             const [empRes, attRes, rulesRes] = await Promise.all([
@@ -177,21 +120,58 @@ export const WorkforceProvider = ({ children }) => {
                 axios.get(`${API_BASE}/api/attendance`),
                 axios.get(`${API_BASE}/api/rules`)
             ]);
-            setEmployees(Array.isArray(empRes.data) ? empRes.data : []);
-            setAttendance(attRes.data && typeof attRes.data === 'object' ? attRes.data : {});
-            setRules(rulesRes.data || defaultRules);
+
+            const serverEmployees  = Array.isArray(empRes.data) ? empRes.data : [];
+            const serverAttendance = attRes.data && typeof attRes.data === 'object' ? attRes.data : {};
+            const serverRules      = rulesRes.data || defaultRules;
+
+            // ── Attendance restoration logic ──────────────────────────────────
+            // If the server returned empty attendance it likely restarted and lost
+            // its in-memory store.  Restore from localStorage so the user never
+            // sees a blank history.
+            const serverHasAttendance = Object.keys(serverAttendance).length > 0;
+
+            if (!serverHasAttendance) {
+                const cached = readCachedState();
+                const cachedHasAttendance = Object.keys(cached.attendance).length > 0;
+
+                if (cachedHasAttendance) {
+                    console.warn('⚠️ Server attendance is empty — restoring from local cache.');
+                    setAttendance(cached.attendance);
+
+                    // Push the cached data back to the server in the background
+                    restoreAttendanceToServer(cached.attendance).catch(err =>
+                        console.error('Failed to restore attendance to server:', err)
+                    );
+                } else {
+                    setAttendance({});
+                }
+            } else {
+                // Server has data — merge with local cache so we never lose records
+                // that exist only in one place.
+                const cached = readCachedState();
+                const merged = { ...cached.attendance };
+
+                // Server is authoritative: overwrite cache entries with server entries
+                Object.entries(serverAttendance).forEach(([date, empMap]) => {
+                    merged[date] = { ...(merged[date] || {}), ...empMap };
+                });
+
+                setAttendance(merged);
+            }
+            // ─────────────────────────────────────────────────────────────────
+
+            setEmployees(serverEmployees.length > 0 ? serverEmployees : cachedState.employees);
+            setRules(serverRules);
             setSyncError(null);
         } catch (error) {
-            console.error("Migration/Fetch Error:", error);
-            if (hasPendingSync && isRecoverableSyncFailure(error)) {
-                markPendingSync('Saved on this device only. Retry sync when the backend is available.');
-            } else {
-                captureSyncError(error, 'Unable to sync with the backend right now.');
-            }
+            console.error('Migration/Fetch Error:', error);
+            // On network error keep whatever is in local cache — don't wipe it
+            captureSyncError(error, 'Unable to sync with the backend right now.');
         } finally {
             setLoading(false);
         }
-    }, [captureSyncError, fetchStorageStatus, hasPendingSync, markPendingSync, syncPendingChanges]);
+    }, [captureSyncError, fetchStorageStatus]);
 
     useEffect(() => {
         refreshData();
@@ -199,16 +179,16 @@ export const WorkforceProvider = ({ children }) => {
         const newSocket = io(API_BASE);
 
         newSocket.on('state_changed', (data) => {
-            console.log('Lively update received:', data);
+            console.log('Live update received:', data);
             refreshData();
         });
 
         return () => newSocket.close();
     }, [refreshData]);
 
+    // Persist every state change to localStorage
     useEffect(() => {
         if (typeof window === 'undefined') return;
-
         try {
             localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify({ employees, attendance, rules }));
         } catch (error) {
@@ -216,29 +196,13 @@ export const WorkforceProvider = ({ children }) => {
         }
     }, [employees, attendance, rules]);
 
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        try {
-            localStorage.setItem(LOCAL_SYNC_META_KEY, JSON.stringify({ hasPendingSync }));
-        } catch (error) {
-            console.error('Unable to write sync metadata:', error);
-        }
-    }, [hasPendingSync]);
-
     const saveEmployees = async (newEmployees) => {
         const previousEmployees = employees;
         setEmployees(newEmployees);
-
         try {
             await axios.post(`${API_BASE}/api/employees/sync`, { employees: newEmployees });
-            clearPendingSync();
+            setSyncError(null);
         } catch (error) {
-            if (isRecoverableSyncFailure(error)) {
-                markPendingSync('Employee changes are saved on this device. Retry sync when the backend is available.');
-                return { queued: true };
-            }
-
             setEmployees(previousEmployees);
             captureSyncError(error, 'Unable to save employees right now.');
             throw error;
@@ -249,16 +213,10 @@ export const WorkforceProvider = ({ children }) => {
         const previousAttendance = attendance;
         const nextAttendance = mergeAttendanceRecord(previousAttendance, record);
         setAttendance(nextAttendance);
-
         try {
             await axios.post(`${API_BASE}/api/attendance`, record);
-            clearPendingSync();
+            setSyncError(null);
         } catch (error) {
-            if (isRecoverableSyncFailure(error)) {
-                markPendingSync('Attendance is saved on this device. Retry sync when the backend is available.');
-                return { queued: true };
-            }
-
             setAttendance(previousAttendance);
             captureSyncError(error, 'Unable to save attendance right now.');
             throw error;
@@ -269,16 +227,10 @@ export const WorkforceProvider = ({ children }) => {
         const previousAttendance = attendance;
         const nextAttendance = mergeAttendanceRecords(previousAttendance, records);
         setAttendance(nextAttendance);
-
         try {
             await axios.post(`${API_BASE}/api/attendance/bulk`, { records });
-            clearPendingSync();
+            setSyncError(null);
         } catch (error) {
-            if (isRecoverableSyncFailure(error)) {
-                markPendingSync('Attendance is saved on this device. Retry sync when the backend is available.');
-                return { queued: true };
-            }
-
             setAttendance(previousAttendance);
             captureSyncError(error, 'Unable to save attendance right now.');
             throw error;
@@ -289,16 +241,10 @@ export const WorkforceProvider = ({ children }) => {
         const previousRules = rules;
         const nextRules = { ...defaultRules, ...newRules };
         setRules(nextRules);
-
         try {
             await axios.post(`${API_BASE}/api/rules`, nextRules);
-            clearPendingSync();
+            setSyncError(null);
         } catch (error) {
-            if (isRecoverableSyncFailure(error)) {
-                markPendingSync('Rules are saved on this device. Retry sync when the backend is available.');
-                return { queued: true };
-            }
-
             setRules(previousRules);
             captureSyncError(error, 'Unable to save rules right now.');
             throw error;
@@ -312,7 +258,6 @@ export const WorkforceProvider = ({ children }) => {
         loading,
         storageStatus,
         syncError,
-        hasPendingSync,
         refreshData,
         saveEmployees,
         saveAttendanceRecord,
