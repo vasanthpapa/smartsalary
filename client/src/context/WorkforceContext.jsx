@@ -81,6 +81,8 @@ const isRecoverableSyncFailure = (error) => (
     error?.response?.data?.code === 'STORAGE_UNAVAILABLE'
 );
 
+const isNotFoundError = (error) => error?.response?.status === 404;
+
 export const WorkforceProvider = ({ children }) => {
     const cachedState = readCachedState();
     const cachedSyncMeta = readSyncMeta();
@@ -109,6 +111,35 @@ export const WorkforceProvider = ({ children }) => {
         setHasPendingSync(false);
         setSyncError(null);
     }, []);
+
+    const fetchLegacyStorageStatus = useCallback(async () => {
+        try {
+            const response = await axios.get(`${API_BASE}/api/system/status`);
+            return response.data?.storage || DEFAULT_STORAGE_STATUS;
+        } catch (error) {
+            const nextStatus = error?.response?.data?.storage;
+            if (nextStatus) {
+                return nextStatus;
+            }
+            throw error;
+        }
+    }, []);
+
+    const fetchLegacySnapshot = useCallback(async () => {
+        const [storage, empRes, attRes, rulesRes] = await Promise.all([
+            fetchLegacyStorageStatus(),
+            axios.get(`${API_BASE}/api/employees`),
+            axios.get(`${API_BASE}/api/attendance`),
+            axios.get(`${API_BASE}/api/rules`)
+        ]);
+
+        return {
+            storage,
+            employees: Array.isArray(empRes.data) ? empRes.data : [],
+            attendance: attRes.data && typeof attRes.data === 'object' ? attRes.data : {},
+            rules: rulesRes.data || defaultRules
+        };
+    }, [fetchLegacyStorageStatus]);
 
     const applyServerSnapshot = useCallback((snapshot) => {
         const nextStorage = snapshot?.storage || DEFAULT_STORAGE_STATUS;
@@ -148,15 +179,53 @@ export const WorkforceProvider = ({ children }) => {
     }, [cachedState.employees, markPendingSync]);
 
     const syncLocalCacheToServer = useCallback(async () => {
-        const response = await axios.post(`${API_BASE}/api/sync`, { employees, attendance, rules });
-        applyServerSnapshot(response.data);
+        try {
+            const response = await axios.post(`${API_BASE}/api/sync`, { employees, attendance, rules });
+            applyServerSnapshot(response.data);
+        } catch (error) {
+            if (!isNotFoundError(error)) {
+                throw error;
+            }
+
+            const records = [];
+            Object.entries(attendance).forEach(([date, empMap]) => {
+                if (!empMap || typeof empMap !== 'object') return;
+
+                Object.entries(empMap).forEach(([employeeId, data]) => {
+                    if (!data?.status) return;
+                    records.push({ date, employeeId, status: data.status, time: data.time || '' });
+                });
+            });
+
+            await axios.post(`${API_BASE}/api/employees/sync`, { employees });
+            if (records.length > 0) {
+                await axios.post(`${API_BASE}/api/attendance/bulk`, { records });
+            }
+            await axios.post(`${API_BASE}/api/rules`, rules);
+
+            const snapshot = await fetchLegacySnapshot();
+            applyServerSnapshot(snapshot);
+        }
+
         clearPendingSync();
-    }, [applyServerSnapshot, attendance, clearPendingSync, employees, rules]);
+    }, [applyServerSnapshot, attendance, clearPendingSync, employees, fetchLegacySnapshot, rules]);
 
     const refreshData = useCallback(async () => {
         try {
-            const bootstrapResponse = await axios.get(`${API_BASE}/api/bootstrap`);
-            const nextStatus = bootstrapResponse.data?.storage || DEFAULT_STORAGE_STATUS;
+            let snapshot;
+
+            try {
+                const bootstrapResponse = await axios.get(`${API_BASE}/api/bootstrap`);
+                snapshot = bootstrapResponse.data;
+            } catch (error) {
+                if (!isNotFoundError(error)) {
+                    throw error;
+                }
+
+                snapshot = await fetchLegacySnapshot();
+            }
+
+            const nextStatus = snapshot?.storage || DEFAULT_STORAGE_STATUS;
             if (nextStatus?.persistent && nextStatus?.available === false) {
                 setStorageStatus(nextStatus);
                 if (hasPendingSync) {
@@ -170,7 +239,7 @@ export const WorkforceProvider = ({ children }) => {
                 return;
             }
 
-            applyServerSnapshot(bootstrapResponse.data);
+            applyServerSnapshot(snapshot);
         } catch (error) {
             console.error('Migration/Fetch Error:', error);
             if (isRecoverableSyncFailure(error)) {
@@ -181,7 +250,7 @@ export const WorkforceProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    }, [applyServerSnapshot, captureSyncError, hasPendingSync, markPendingSync, syncLocalCacheToServer]);
+    }, [applyServerSnapshot, captureSyncError, fetchLegacySnapshot, hasPendingSync, markPendingSync, syncLocalCacheToServer]);
 
     useEffect(() => {
         refreshData();
