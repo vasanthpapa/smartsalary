@@ -10,7 +10,7 @@ import Attendance from './pages/Attendance';
 import Calculator from './pages/Calculator';
 
 const App = () => {
-    const { loading, storageStatus, syncError, refreshData } = useWorkforce();
+    const { loading, storageStatus, syncError, hasPendingSync, refreshData } = useWorkforce();
     const [page, setPage] = useState('dashboard');
 
     useEffect(() => {
@@ -31,6 +31,17 @@ const App = () => {
 
     const showStorageBanner = Boolean(syncError) || Boolean(storageStatus && (storageStatus.available === false || storageStatus.persistent === false));
     const bannerText = syncError || storageStatus?.message;
+    const bannerTone = hasPendingSync ? {
+        border: '1px solid rgba(251, 191, 36, 0.35)',
+        background: 'rgba(120, 53, 15, 0.22)',
+        color: '#fde68a',
+        buttonBorder: 'rgba(253, 230, 138, 0.45)'
+    } : {
+        border: '1px solid rgba(248, 113, 113, 0.35)',
+        background: 'rgba(127, 29, 29, 0.2)',
+        color: '#fecaca',
+        buttonBorder: 'rgba(252, 165, 165, 0.45)'
+    };
 
     const renderPage = () => {
         switch(page) {
@@ -58,9 +69,9 @@ const App = () => {
                                 margin: '1.5rem 1.5rem 0',
                                 padding: '0.9rem 1rem',
                                 borderRadius: '16px',
-                                border: '1px solid rgba(248, 113, 113, 0.35)',
-                                background: 'rgba(127, 29, 29, 0.2)',
-                                color: '#fecaca',
+                                border: bannerTone.border,
+                                background: bannerTone.background,
+                                color: bannerTone.color,
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 gap: '1rem',
@@ -74,9 +85,9 @@ const App = () => {
                             <button
                                 className="secondary-btn small-btn"
                                 onClick={refreshData}
-                                style={{ width: 'auto', borderColor: 'rgba(252, 165, 165, 0.45)', color: '#fecaca' }}
+                                style={{ width: 'auto', borderColor: bannerTone.buttonBorder, color: bannerTone.color }}
                             >
-                                Retry Sync
+                                {hasPendingSync ? 'Sync Saved Data' : 'Retry Sync'}
                             </button>
                         </div>
                     )}
