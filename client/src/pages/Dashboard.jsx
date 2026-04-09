@@ -4,14 +4,22 @@ import { useWorkforce } from '../context/workforceShared';
 const Dashboard = () => {
     const { employees, attendance } = useWorkforce();
 
-    const stats = useMemo(() => {
+    const todayAttendance = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
         const todayEntries = attendance[todayStr] || {};
-        
-        const present = Object.values(todayEntries).filter(a => a.status === 'present' || a.status === 'late').length;
-        const late = Object.values(todayEntries).filter(a => a.status === 'late').length;
-        const sickToday = Object.values(todayEntries).filter(a => a.status === 'sick_leave').length;
-        const holidayToday = Object.values(todayEntries).filter(a => a.status === 'holiday').length;
+
+        return (employees || []).map(emp => ({
+            ...emp,
+            status: todayEntries[emp.id]?.status || 'pending',
+            time: todayEntries[emp.id]?.time || '--:--'
+        }));
+    }, [employees, attendance]);
+
+    const stats = useMemo(() => {
+        const present = todayAttendance.filter(row => row.status === 'present' || row.status === 'late').length;
+        const late = todayAttendance.filter(row => row.status === 'late').length;
+        const sickToday = todayAttendance.filter(row => row.status === 'sick_leave').length;
+        const holidayToday = todayAttendance.filter(row => row.status === 'holiday').length;
 
         return [
             { label: 'Total Employees', value: (employees || []).length, sub: 'Staff members' },
@@ -20,18 +28,7 @@ const Dashboard = () => {
             { label: 'Sick Leave Today', value: sickToday, sub: 'Medical' },
             { label: 'Holiday Today', value: holidayToday, sub: 'Special' }
         ];
-    }, [employees, attendance]);
-
-    const todayAttendance = useMemo(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayEntries = attendance[todayStr] || {};
-        
-        return (employees || []).map(emp => ({
-            ...emp,
-            status: todayEntries[emp.id]?.status || 'pending',
-            time: todayEntries[emp.id]?.time || '--:--'
-        }));
-    }, [employees, attendance]);
+    }, [employees, todayAttendance]);
 
     const lateAlerts = useMemo(() => {
         const todayStr = new Date().toISOString().split('T')[0];
