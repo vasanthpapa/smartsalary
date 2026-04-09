@@ -1,21 +1,9 @@
-import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import io from 'socket.io-client';
+import { API_BASE, defaultRules, WorkforceContext } from './workforceShared';
 
-const WorkforceContext = createContext();
 const LOCAL_CACHE_KEY = 'wf_data_cache';
-const configuredApiBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
-
-// Constants
-export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-export const DAYNAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-export const DAYSHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-// In development, leave this empty so Vite can proxy to the local backend.
-// In production, set VITE_API_BASE_URL to your deployed backend URL.
-const API_BASE = configuredApiBase;
-
-const defaultRules = { grace: 15, lateN: 3, lateType: 'halfday', lateFixed: 500 };
 
 const readCachedState = () => {
     if (typeof window === 'undefined') {
@@ -65,7 +53,6 @@ export const WorkforceProvider = ({ children }) => {
     const [attendance, setAttendance] = useState(cachedState.attendance);
     const [rules, setRules] = useState(cachedState.rules);
     const [loading, setLoading] = useState(true);
-    const [socket, setSocket] = useState(null);
 
     const refreshData = useCallback(async () => {
         try {
@@ -88,7 +75,6 @@ export const WorkforceProvider = ({ children }) => {
         refreshData();
 
         const newSocket = io(API_BASE);
-        setSocket(newSocket);
 
         newSocket.on('state_changed', (data) => {
             console.log('Lively update received:', data);
@@ -177,5 +163,3 @@ export const WorkforceProvider = ({ children }) => {
         </WorkforceContext.Provider>
     );
 };
-
-export const useWorkforce = () => useContext(WorkforceContext);

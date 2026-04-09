@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useWorkforce } from '../context/WorkforceContext';
+import { useWorkforce } from '../context/workforceShared';
 
 const Dashboard = () => {
     const { employees, attendance } = useWorkforce();
@@ -9,7 +9,6 @@ const Dashboard = () => {
         const todayEntries = attendance[todayStr] || {};
         
         const present = Object.values(todayEntries).filter(a => a.status === 'present' || a.status === 'late').length;
-        const absent = Object.values(todayEntries).filter(a => a.status === 'absent').length;
         const late = Object.values(todayEntries).filter(a => a.status === 'late').length;
         const sickToday = Object.values(todayEntries).filter(a => a.status === 'sick_leave').length;
         const holidayToday = Object.values(todayEntries).filter(a => a.status === 'holiday').length;

@@ -1,9 +1,7 @@
 import React from 'react';
-import { useWorkforce, MONTHS } from '../context/WorkforceContext';
+import { MONTHS } from '../context/workforceShared';
 
 const Topbar = ({ activePage }) => {
-  const { rules } = useWorkforce(); // In case we need it for theme from context later
-  
   const titleMap = {
     'dashboard': 'Dashboard',
     'employees': 'Employees',

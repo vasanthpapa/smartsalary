@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useWorkforce, MONTHS, DAYSHORT } from '../context/WorkforceContext';
-import { Calendar, Download, FileText, ChevronLeft, ChevronRight, X, Lock, Unlock } from 'lucide-react';
+import { useWorkforce, MONTHS, DAYSHORT } from '../context/workforceShared';
+import { FileText, X, Lock, Unlock } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -13,46 +13,41 @@ const Attendance = () => {
     const [selectedEmp, setSelectedEmp] = useState('');
     const [viewMonth, setViewMonth] = useState(new Date().getMonth());
     const [viewYear, setViewYear] = useState(new Date().getFullYear());
-
-    useEffect(() => {
-        if (employees.length > 0 && !selectedEmp) {
-            setSelectedEmp(employees[0].id);
-        }
-    }, [employees, selectedEmp]);
+    const activeEmployeeId = selectedEmp || employees[0]?.id || '';
 
     // --- Bulk Marking Logic ---
+    const selectedDateAttendance = useMemo(() => attendance[selectedDate] || {}, [attendance, selectedDate]);
+    const hasSavedAttendance = Object.keys(selectedDateAttendance).length > 0;
     const bulkEntries = useMemo(() => {
-        const todayEntries = attendance[selectedDate] || {};
         return employees.map(emp => ({
             id: emp.id,
             name: emp.name,
-            status: todayEntries[emp.id]?.status || 'present',
-            time: todayEntries[emp.id]?.time || emp.checkin || '09:00'
+            status: selectedDateAttendance[emp.id]?.status || 'present',
+            time: selectedDateAttendance[emp.id]?.time || emp.checkin || '09:00'
         }));
-    }, [employees, attendance, selectedDate]);
+    }, [employees, selectedDateAttendance]);
 
-    const [tempBulk, setTempBulk] = useState([]);
-    const [isLocked, setIsLocked] = useState(false);
+    const bulkDraftKey = `${selectedDate}::${employees.map(emp => emp.id).join('|')}`;
+    const [bulkDraft, setBulkDraft] = useState({ key: '', entries: [] });
+    const [isManuallyUnlocked, setIsManuallyUnlocked] = useState(false);
     const hasUserEditedRef = useRef(false);
-
-    // Only reset tempBulk when the selected date or employees change — NOT when
-    // attendance context updates (e.g. after a save), so saved data can't be overwritten silently.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        setTempBulk(bulkEntries);
-        hasUserEditedRef.current = false;
-        // Auto-lock if this date already has saved attendance
-        const saved = attendance[selectedDate] || {};
-        setIsLocked(Object.keys(saved).length > 0);
-    }, [selectedDate, employees.length]); // intentionally excludes attendance
+    const tempBulk = bulkDraft.key === bulkDraftKey ? bulkDraft.entries : bulkEntries;
+    const isLocked = hasSavedAttendance && !isManuallyUnlocked;
 
     const updateTemp = (empId, fields) => {
         hasUserEditedRef.current = true;
-        setTempBulk(prev => prev.map(item => item.id === empId ? { ...item, ...fields } : item));
+        setBulkDraft(prev => {
+            const currentEntries = prev.key === bulkDraftKey ? prev.entries : bulkEntries;
+
+            return {
+                key: bulkDraftKey,
+                entries: currentEntries.map(item => item.id === empId ? { ...item, ...fields } : item)
+            };
+        });
     };
 
     useEffect(() => {
-        if (isLocked || !hasUserEditedRef.current || tempBulk.length === 0) return;
+        if (isLocked || !hasUserEditedRef.current || tempBulk.length === 0 || bulkDraft.key !== bulkDraftKey) return;
 
         const autosaveTimer = setTimeout(async () => {
             try {
@@ -64,13 +59,14 @@ const Attendance = () => {
                 }));
                 await saveBulkAttendance(records);
                 hasUserEditedRef.current = false;
+                setIsManuallyUnlocked(false);
             } catch (error) {
                 console.error('Auto-save attendance failed:', error);
             }
         }, 500);
 
         return () => clearTimeout(autosaveTimer);
-    }, [isLocked, selectedDate, tempBulk, saveBulkAttendance]);
+    }, [bulkDraft.key, bulkDraftKey, isLocked, saveBulkAttendance, selectedDate, tempBulk]);
 
     const handleSaveBulk = async () => {
         const records = tempBulk.map(item => ({
@@ -80,13 +76,14 @@ const Attendance = () => {
             time: item.time
         }));
         await saveBulkAttendance(records);
-        setIsLocked(true); // Lock after saving — no accidental changes
+        hasUserEditedRef.current = false;
+        setIsManuallyUnlocked(false);
         alert("Attendance saved!");
     };
 
     // --- Individual Calendar Logic ---
     const calendarData = useMemo(() => {
-        if (!selectedEmp) return [];
+        if (!activeEmployeeId) return [];
         const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
         const firstDay = new Date(viewYear, viewMonth, 1).getDay();
 
@@ -96,11 +93,11 @@ const Attendance = () => {
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            const att = attendance[dateStr]?.[selectedEmp];
+            const att = attendance[dateStr]?.[activeEmployeeId];
             days.push({ day: d, status: att?.status || 'none', time: att?.time });
         }
         return days;
-    }, [selectedEmp, viewMonth, viewYear, attendance]);
+    }, [activeEmployeeId, viewMonth, viewYear, attendance]);
 
     const totals = useMemo(() => {
         const stats = { P: 0, L: 0, A: 0, W: 0, HD: 0, LV: 0, SL: 0, HL: 0 };
@@ -150,7 +147,7 @@ const Attendance = () => {
                         {isLocked && (
                             <button
                                 className="secondary-btn small-btn"
-                                onClick={() => setIsLocked(false)}
+                                onClick={() => setIsManuallyUnlocked(true)}
                                 style={{ borderColor: 'var(--warning)', color: 'var(--warning)', padding: '0.25rem 0.75rem', display: 'flex', alignItems: 'center', gap: '5px' }}
                             >
                                 <Unlock size={14} /> Edit
@@ -159,7 +156,17 @@ const Attendance = () => {
                         <button className="secondary-btn small-btn" onClick={() => setIsReportOpen(true)} style={{ borderColor: 'var(--primary)', color: 'var(--primary)', padding: '0.25rem 0.75rem' }}>
                             <FileText size={16} /> Monthly Report
                         </button>
-                        <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bulk-time-input" style={{ width: '150px' }} />
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => {
+                                hasUserEditedRef.current = false;
+                                setIsManuallyUnlocked(false);
+                                setSelectedDate(e.target.value);
+                            }}
+                            className="bulk-time-input"
+                            style={{ width: '150px' }}
+                        />
                     </div>
                 </div>
 
@@ -229,7 +236,7 @@ const Attendance = () => {
                     <div style={{ flex: 1, minWidth: '250px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         <div className="input-group">
                             <label>Select Employee</label>
-                            <select value={selectedEmp} onChange={(e) => setSelectedEmp(e.target.value)} className="theme-select" style={{ width: '100%' }}>
+                            <select value={activeEmployeeId} onChange={(e) => setSelectedEmp(e.target.value)} className="theme-select" style={{ width: '100%' }}>
                                 {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                             </select>
                         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useWorkforce, DAYSHORT } from '../context/WorkforceContext';
+import { useWorkforce, DAYSHORT } from '../context/workforceShared';
 import { Edit2, Trash2, PlusCircle, X } from 'lucide-react';
 
 const Employees = () => {

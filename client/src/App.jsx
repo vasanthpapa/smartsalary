@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
-import { useWorkforce } from './context/WorkforceContext';
+import { useWorkforce } from './context/workforceShared';
 
 // Actual Page Components
 import Dashboard from './pages/Dashboard';
