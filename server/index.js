@@ -12,8 +12,21 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = Number(process.env.PORT) || 3000;
 const MONGO_URI = process.env.MONGO_URI;
-const HAS_MONGO_URI = Boolean(MONGO_URI) && !MONGO_URI.includes("REPLACE_WITH");
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+const looksLikePlaceholder = (value = '') => {
+    const normalized = String(value).toUpperCase();
+    return (
+        !normalized ||
+        normalized.includes('REPLACE_WITH') ||
+        normalized.includes('YOURNEWPASSWORD') ||
+        normalized.includes('YOUR_PASSWORD') ||
+        normalized.includes('PASSWORD_HERE') ||
+        normalized.includes('YOUR_MONGODB_CONNECTION_STRING')
+    );
+};
+
+const HAS_MONGO_URI = Boolean(MONGO_URI) && !looksLikePlaceholder(MONGO_URI);
 
 // Middleware
 app.use(cors());
@@ -58,7 +71,11 @@ const createStorageStatus = (overrides = {}) => ({
     persistent: !shouldUseMockStore(),
     available: shouldUseMockStore() || mongoose.connection.readyState === 1,
     message: shouldUseMockStore()
-        ? 'Demo mode is active. Configure MONGO_URI to keep data permanently.'
+        ? (
+            looksLikePlaceholder(MONGO_URI)
+                ? 'Live save is disabled because MONGO_URI is still using a placeholder value. Set the real MongoDB Atlas connection string in the backend environment.'
+                : 'Demo mode is active. Configure MONGO_URI to keep data permanently.'
+        )
         : (lastMongoError?.message || null),
     ...overrides
 });
@@ -145,6 +162,113 @@ const Attendance = mongoose.model('Attendance', AttendanceSchema);
 const RulesSchema = new mongoose.Schema({ grace: Number, lateN: Number, lateType: String, lateFixed: Number });
 const Rules = mongoose.model('Rules', RulesSchema);
 
+const attendanceMapToRecords = (attendanceMap = {}) => {
+    const records = [];
+
+    Object.entries(attendanceMap).forEach(([date, employeeMap]) => {
+        if (!employeeMap || typeof employeeMap !== 'object') return;
+
+        Object.entries(employeeMap).forEach(([employeeId, data]) => {
+            if (!data?.status) return;
+            records.push({
+                date,
+                employeeId,
+                status: data.status,
+                time: data.time || ''
+            });
+        });
+    });
+
+    return records;
+};
+
+const getAttendanceMap = async () => {
+    if (shouldUseMockStore()) return mockAttendance;
+
+    const data = await Attendance.find().lean();
+    return data.reduce((map, record) => {
+        if (!map[record.date]) map[record.date] = {};
+        map[record.date][record.employeeId] = { status: record.status, time: record.time };
+        return map;
+    }, {});
+};
+
+const getRulesConfig = async () => {
+    if (shouldUseMockStore()) return mockRules;
+
+    const rules = await Rules.findOne().lean();
+    return rules || mockRules;
+};
+
+const syncEmployees = async (employees = []) => {
+    if (shouldUseMockStore()) {
+        mockEmployees = employees;
+        return;
+    }
+
+    await Employee.deleteMany({ id: { $nin: employees.map(emp => emp.id) } });
+
+    if (employees.length === 0) {
+        return;
+    }
+
+    await Employee.bulkWrite(
+        employees.map(emp => ({
+            updateOne: {
+                filter: { id: emp.id },
+                update: { $set: emp },
+                upsert: true
+            }
+        })),
+        { ordered: false }
+    );
+};
+
+const syncAttendanceRecords = async (records = []) => {
+    if (shouldUseMockStore()) {
+        records.forEach(rec => {
+            if (!mockAttendance[rec.date]) mockAttendance[rec.date] = {};
+            mockAttendance[rec.date][rec.employeeId] = { status: rec.status, time: rec.time };
+        });
+        return;
+    }
+
+    if (records.length === 0) {
+        return;
+    }
+
+    await Attendance.bulkWrite(
+        records.map(rec => ({
+            updateOne: {
+                filter: { date: rec.date, employeeId: rec.employeeId },
+                update: { $set: rec },
+                upsert: true
+            }
+        })),
+        { ordered: false }
+    );
+};
+
+const syncRulesConfig = async (rules = {}) => {
+    if (shouldUseMockStore()) {
+        Object.assign(mockRules, rules);
+        return;
+    }
+
+    await Rules.findOneAndUpdate({}, rules, { upsert: true });
+};
+
+const getBootstrapPayload = async () => {
+    const [storage, employees, attendance, rules] = await Promise.all([
+        getStorageStatus(),
+        getEmployees(),
+        getAttendanceMap(),
+        getRulesConfig()
+    ]);
+
+    return { storage, employees, attendance, rules };
+};
+
 const getEmployees = async () => {
     if (shouldUseMockStore()) return mockEmployees;
 
@@ -166,6 +290,18 @@ app.get('/api/system/status', async (req, res) => {
     res.json({ storage, environment: IS_PRODUCTION ? 'production' : 'development' });
 });
 
+app.get('/api/bootstrap', async (req, res) => {
+    try {
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        res.json(await getBootstrapPayload());
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/employees', async (req, res) => {
     try {
         if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
@@ -178,16 +314,15 @@ app.get('/api/employees', async (req, res) => {
 app.post('/api/employees/sync', async (req, res) => {
     try {
         const { employees } = req.body;
-        if (shouldUseMockStore()) mockEmployees = employees;
-        else {
-            if (!(await ensurePersistentStore())) {
-                return await respondStorageUnavailable(res);
-            }
-            await Employee.deleteMany({ id: { $nin: employees.map(emp => emp.id) } });
-            for (let emp of employees) {
-                await Employee.findOneAndUpdate({ id: emp.id }, emp, { upsert: true, new: true });
-            }
+        if (!Array.isArray(employees)) {
+            return res.status(400).json({ error: 'employees must be an array.' });
         }
+
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        await syncEmployees(employees);
         io.emit('state_changed', { type: 'employees' });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -199,10 +334,7 @@ app.get('/api/attendance', async (req, res) => {
         if (!(await ensurePersistentStore())) {
             return await respondStorageUnavailable(res);
         }
-        const data = await Attendance.find();
-        const map = {};
-        data.forEach(a => { if (!map[a.date]) map[a.date] = {}; map[a.date][a.employeeId] = { status: a.status, time: a.time }; });
-        res.json(map);
+        res.json(await getAttendanceMap());
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -230,14 +362,15 @@ app.post('/api/attendance', async (req, res) => {
 app.post('/api/attendance/bulk', async (req, res) => {
     try {
         const { records } = req.body;
-        if (shouldUseMockStore()) {
-            records.forEach(rec => { if (!mockAttendance[rec.date]) mockAttendance[rec.date] = {}; mockAttendance[rec.date][rec.employeeId] = { status: rec.status, time: rec.time }; });
-        } else {
-            if (!(await ensurePersistentStore())) {
-                return await respondStorageUnavailable(res);
-            }
-            for (let rec of records) await Attendance.findOneAndUpdate({ date: rec.date, employeeId: rec.employeeId }, rec, { upsert: true });
+        if (!Array.isArray(records)) {
+            return res.status(400).json({ error: 'records must be an array.' });
         }
+
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        await syncAttendanceRecords(records);
         io.emit('state_changed', { type: 'attendance' });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
@@ -249,22 +382,56 @@ app.get('/api/rules', async (req, res) => {
         if (!(await ensurePersistentStore())) {
             return await respondStorageUnavailable(res);
         }
-        const r = await Rules.findOne(); res.json(r || mockRules);
+        res.json(await getRulesConfig());
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/rules', async (req, res) => {
     try {
-        if (shouldUseMockStore()) Object.assign(mockRules, req.body);
-        else {
-            if (!(await ensurePersistentStore())) {
-                return await respondStorageUnavailable(res);
-            }
-            await Rules.findOneAndUpdate({}, req.body, { upsert: true });
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
         }
+
+        await syncRulesConfig(req.body);
         io.emit('state_changed', { type: 'rules' });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sync', async (req, res) => {
+    try {
+        const { employees = [], attendance = {}, rules = {} } = req.body;
+
+        if (!Array.isArray(employees)) {
+            return res.status(400).json({ error: 'employees must be an array.' });
+        }
+
+        if (!attendance || typeof attendance !== 'object' || Array.isArray(attendance)) {
+            return res.status(400).json({ error: 'attendance must be an object.' });
+        }
+
+        if (!rules || typeof rules !== 'object' || Array.isArray(rules)) {
+            return res.status(400).json({ error: 'rules must be an object.' });
+        }
+
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        const attendanceRecords = attendanceMapToRecords(attendance);
+
+        await Promise.all([
+            syncEmployees(employees),
+            syncAttendanceRecords(attendanceRecords),
+            syncRulesConfig(rules)
+        ]);
+
+        const payload = await getBootstrapPayload();
+        io.emit('state_changed', { type: 'sync' });
+        res.json({ success: true, ...payload });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 if (process.env.NODE_ENV === 'production') {

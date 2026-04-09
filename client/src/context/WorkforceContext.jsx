@@ -81,23 +81,6 @@ const isRecoverableSyncFailure = (error) => (
     error?.response?.data?.code === 'STORAGE_UNAVAILABLE'
 );
 
-// Restore all cached attendance records back to the server (bulk push)
-const restoreAttendanceToServer = async (attendanceData) => {
-    const records = [];
-    Object.entries(attendanceData).forEach(([date, empMap]) => {
-        if (!empMap || typeof empMap !== 'object') return;
-        Object.entries(empMap).forEach(([employeeId, data]) => {
-            if (data?.status) {
-                records.push({ date, employeeId, status: data.status, time: data.time || '' });
-            }
-        });
-    });
-    if (records.length > 0) {
-        await axios.post(`${API_BASE}/api/attendance/bulk`, { records });
-        console.log(`✅ Restored ${records.length} attendance records from local cache to server.`);
-    }
-};
-
 export const WorkforceProvider = ({ children }) => {
     const cachedState = readCachedState();
     const cachedSyncMeta = readSyncMeta();
@@ -108,22 +91,6 @@ export const WorkforceProvider = ({ children }) => {
     const [storageStatus, setStorageStatus] = useState(DEFAULT_STORAGE_STATUS);
     const [syncError, setSyncError] = useState(null);
     const [hasPendingSync, setHasPendingSync] = useState(cachedSyncMeta.hasPendingSync);
-
-    const fetchStorageStatus = useCallback(async () => {
-        try {
-            const response = await axios.get(`${API_BASE}/api/system/status`);
-            const nextStatus = response.data?.storage || DEFAULT_STORAGE_STATUS;
-            setStorageStatus(nextStatus);
-            return nextStatus;
-        } catch (error) {
-            const nextStatus = error?.response?.data?.storage;
-            if (nextStatus) {
-                setStorageStatus(nextStatus);
-                return nextStatus;
-            }
-            throw error;
-        }
-    }, []);
 
     const captureSyncError = useCallback((error, fallbackMessage) => {
         const nextStatus = error?.response?.data?.storage;
@@ -143,17 +110,55 @@ export const WorkforceProvider = ({ children }) => {
         setSyncError(null);
     }, []);
 
+    const applyServerSnapshot = useCallback((snapshot) => {
+        const nextStorage = snapshot?.storage || DEFAULT_STORAGE_STATUS;
+        const serverEmployees = Array.isArray(snapshot?.employees) ? snapshot.employees : [];
+        const serverAttendance = snapshot?.attendance && typeof snapshot.attendance === 'object' ? snapshot.attendance : {};
+        const serverRules = snapshot?.rules || defaultRules;
+
+        setStorageStatus(nextStorage);
+
+        const serverHasAttendance = Object.keys(serverAttendance).length > 0;
+
+        if (!serverHasAttendance) {
+            const cached = readCachedState();
+            const cachedHasAttendance = Object.keys(cached.attendance).length > 0;
+
+            if (cachedHasAttendance) {
+                console.warn('Server attendance is empty; keeping the local cache until sync completes.');
+                setAttendance(cached.attendance);
+                markPendingSync(null);
+            } else {
+                setAttendance({});
+            }
+        } else {
+            const cached = readCachedState();
+            const merged = { ...cached.attendance };
+
+            Object.entries(serverAttendance).forEach(([date, empMap]) => {
+                merged[date] = { ...(merged[date] || {}), ...empMap };
+            });
+
+            setAttendance(merged);
+        }
+
+        setEmployees(serverEmployees.length > 0 ? serverEmployees : cachedState.employees);
+        setRules(serverRules);
+        setSyncError(null);
+    }, [cachedState.employees, markPendingSync]);
+
     const syncLocalCacheToServer = useCallback(async () => {
-        await axios.post(`${API_BASE}/api/employees/sync`, { employees });
-        await restoreAttendanceToServer(attendance);
-        await axios.post(`${API_BASE}/api/rules`, rules);
+        const response = await axios.post(`${API_BASE}/api/sync`, { employees, attendance, rules });
+        applyServerSnapshot(response.data);
         clearPendingSync();
-    }, [attendance, clearPendingSync, employees, rules]);
+    }, [applyServerSnapshot, attendance, clearPendingSync, employees, rules]);
 
     const refreshData = useCallback(async () => {
         try {
-            const nextStatus = await fetchStorageStatus();
+            const bootstrapResponse = await axios.get(`${API_BASE}/api/bootstrap`);
+            const nextStatus = bootstrapResponse.data?.storage || DEFAULT_STORAGE_STATUS;
             if (nextStatus?.persistent && nextStatus?.available === false) {
+                setStorageStatus(nextStatus);
                 if (hasPendingSync) {
                     markPendingSync(null);
                 }
@@ -162,57 +167,10 @@ export const WorkforceProvider = ({ children }) => {
 
             if (hasPendingSync) {
                 await syncLocalCacheToServer();
+                return;
             }
 
-            const [empRes, attRes, rulesRes] = await Promise.all([
-                axios.get(`${API_BASE}/api/employees`),
-                axios.get(`${API_BASE}/api/attendance`),
-                axios.get(`${API_BASE}/api/rules`)
-            ]);
-
-            const serverEmployees  = Array.isArray(empRes.data) ? empRes.data : [];
-            const serverAttendance = attRes.data && typeof attRes.data === 'object' ? attRes.data : {};
-            const serverRules      = rulesRes.data || defaultRules;
-
-            // ── Attendance restoration logic ──────────────────────────────────
-            // If the server returned empty attendance it likely restarted and lost
-            // its in-memory store.  Restore from localStorage so the user never
-            // sees a blank history.
-            const serverHasAttendance = Object.keys(serverAttendance).length > 0;
-
-            if (!serverHasAttendance) {
-                const cached = readCachedState();
-                const cachedHasAttendance = Object.keys(cached.attendance).length > 0;
-
-                if (cachedHasAttendance) {
-                    console.warn('⚠️ Server attendance is empty — restoring from local cache.');
-                    setAttendance(cached.attendance);
-
-                    // Push the cached data back to the server in the background
-                    restoreAttendanceToServer(cached.attendance).catch(err =>
-                        console.error('Failed to restore attendance to server:', err)
-                    );
-                } else {
-                    setAttendance({});
-                }
-            } else {
-                // Server has data — merge with local cache so we never lose records
-                // that exist only in one place.
-                const cached = readCachedState();
-                const merged = { ...cached.attendance };
-
-                // Server is authoritative: overwrite cache entries with server entries
-                Object.entries(serverAttendance).forEach(([date, empMap]) => {
-                    merged[date] = { ...(merged[date] || {}), ...empMap };
-                });
-
-                setAttendance(merged);
-            }
-            // ─────────────────────────────────────────────────────────────────
-
-            setEmployees(serverEmployees.length > 0 ? serverEmployees : cachedState.employees);
-            setRules(serverRules);
-            setSyncError(null);
+            applyServerSnapshot(bootstrapResponse.data);
         } catch (error) {
             console.error('Migration/Fetch Error:', error);
             if (isRecoverableSyncFailure(error)) {
@@ -223,7 +181,7 @@ export const WorkforceProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    }, [cachedState.employees, captureSyncError, fetchStorageStatus, hasPendingSync, markPendingSync, syncLocalCacheToServer]);
+    }, [applyServerSnapshot, captureSyncError, hasPendingSync, markPendingSync, syncLocalCacheToServer]);
 
     useEffect(() => {
         refreshData();
