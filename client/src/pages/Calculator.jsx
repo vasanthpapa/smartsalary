@@ -46,7 +46,7 @@ const Calculator = () => {
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const att = attendance[dateStr]?.[selEmpId];
-            if (att?.status === 'present' || att?.status === 'late' || att?.status === 'holiday') worked++;
+            if (att?.status === 'present' || att?.status === 'late' || att?.status === 'holiday' || att?.status === 'weekoff') worked++;
             if (att?.status === 'late') late++;
             if (att?.status === 'half-day') worked += 0.5;
             if (att?.status === 'weekoff') takenWeekOffs++;
