@@ -6,8 +6,7 @@
     "jsx": "react-jsx",
     "checkJs": false,
     "allowJs": true,
-    "baseUrl": "./",
-    "ignoreDeprecations": "6.0"
+    "baseUrl": "./"
   },
   "exclude": [
     "node_modules",
