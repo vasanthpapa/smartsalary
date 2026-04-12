@@ -140,11 +140,18 @@ const Calculator = () => {
             : '';
 
         wrap.innerHTML = `
-            <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #1e293b;">
-                <p style="font-size:20px;font-weight:800;color:#1e293b;margin:0;">
-                    Salary Statement for <span style="color:#1e3a8a;text-decoration:underline;">${empName}</span>
-                </p>
-                <p style="font-size:13px;color:#64748b;margin:4px 0 0 0;">${MONTHS[month]} ${year}</p>
+            <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #1e293b;display:flex;justify-content:space-between;align-items:flex-end;">
+                <div>
+                    <p style="font-size:20px;font-weight:800;color:#1e293b;margin:0;">
+                        Salary Statement for <span style="color:#1e3a8a;text-decoration:underline;">${empName}</span>
+                    </p>
+                    <p style="font-size:13px;color:#64748b;margin:4px 0 0 0;">${MONTHS[month]} ${year}</p>
+                </div>
+                <div style="text-align:right;">
+                    <p style="font-size:16px;font-weight:700;color:#1e3a8a;margin:0;">
+                        Payable Days: ${(Number(workedDays) || 0) + (Number(extraDays) || 0)}
+                    </p>
+                </div>
             </div>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
                 <tbody>
@@ -320,9 +327,14 @@ const Calculator = () => {
                                 Salary Statement for{' '}
                                 <span className="name-highlight">{empName}</span>
                             </h3>
-                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                {MONTHS[month]} {year}
-                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                                    {MONTHS[month]} {year}
+                                </p>
+                                <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--primary)', margin: 0, padding: '2px 10px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '12px' }}>
+                                    Payable Days: {(Number(workedDays) || 0) + (Number(extraDays) || 0)}
+                                </p>
+                            </div>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px', marginBottom: '20px' }}>
