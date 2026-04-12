@@ -41,7 +41,7 @@ const Calculator = () => {
         const emp = employees.find(e => e.id === selEmpId);
         if (emp) setBasic(parseFloat(emp.salary) || 0);
 
-        let worked = 0, late = 0;
+        let worked = 0, late = 0, takenWeekOffs = 0;
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -49,11 +49,22 @@ const Calculator = () => {
             if (att?.status === 'present' || att?.status === 'late' || att?.status === 'holiday') worked++;
             if (att?.status === 'late') late++;
             if (att?.status === 'half-day') worked += 0.5;
+            if (att?.status === 'weekoff') takenWeekOffs++;
         }
         setWorkedDays(worked);
         setLateDays(late);
+        
+        // Extra working days logic: 4 week-offs allowed. Unused week-offs = extra working days.
+        setExtraDays(Math.max(0, 4 - takenWeekOffs));
 
-        // Reset reviews when employee changes
+        // Reset manual fields when employee changes
+        setOtHours(0);
+        setEarlyCount(0);
+        setMorningCount(0);
+        setBatchCount(0);
+        setAllowance(0);
+        setPenalty(0);
+        setExpense(0);
         setReviewCount(0);
     }, [selEmpId, month, year, employees, attendance]);
 
