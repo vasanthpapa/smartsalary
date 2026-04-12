@@ -46,7 +46,7 @@ const Attendance = () => {
         });
     };
 
-// Autosave logic removed to allow multiple edits before manual lockdown.
+    // Autosave logic removed to allow multiple edits before manual lockdown.
 
     const handleSaveBulk = async () => {
         const records = tempBulk.map(item => ({
@@ -225,7 +225,7 @@ const Attendance = () => {
                             <h4 style={{ fontSize: '0.9rem', color: 'var(--primary)' }}>Monthly Totals</h4>
                             <div id="ind-attendance-totals" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                 {[
-                                    { label: 'Present', color: 'dot-present', val: totals.P },
+                                    { label: 'Present', color: 'dot-present', val: totals.P + totals.L },
                                     { label: 'Late', color: 'dot-late', val: totals.L },
                                     { label: 'Absent', color: 'dot-absent', val: totals.A },
                                     { label: 'Week-off', color: 'dot-weekoff', val: totals.W },
