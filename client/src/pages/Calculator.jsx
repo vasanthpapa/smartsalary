@@ -9,20 +9,20 @@ const REVIEW_EMPLOYEES = ['gunasri', 'sireesha', 'vishnukumar'];
 const Calculator = () => {
     const { employees, attendance, rules } = useWorkforce();
 
-    const [selEmpId, setSelEmpId]     = useState('');
-    const [month, setMonth]           = useState(new Date().getMonth());
-    const [year, setYear]             = useState(new Date().getFullYear());
-    const [basic, setBasic]           = useState('');
+    const [selEmpId, setSelEmpId] = useState('');
+    const [month, setMonth] = useState(new Date().getMonth());
+    const [year, setYear] = useState(new Date().getFullYear());
+    const [basic, setBasic] = useState('');
     const [workedDays, setWorkedDays] = useState('');
-    const [otHours, setOtHours]       = useState('');
+    const [otHours, setOtHours] = useState('');
     const [earlyCount, setEarlyCount] = useState('');
     const [morningCount, setMorningCount] = useState('');
     const [batchCount, setBatchCount] = useState('');
-    const [allowance, setAllowance]   = useState('');
-    const [extraDays, setExtraDays]   = useState('');
-    const [penalty, setPenalty]       = useState('');
-    const [expense, setExpense]       = useState('');
-    const [lateDays, setLateDays]     = useState('');
+    const [allowance, setAllowance] = useState('');
+    const [extraDays, setExtraDays] = useState('');
+    const [penalty, setPenalty] = useState('');
+    const [expense, setExpense] = useState('');
+    const [lateDays, setLateDays] = useState('');
     const [reviewCount, setReviewCount] = useState(''); // ← NEW
     const [showResult, setShowResult] = useState(false);
 
@@ -53,7 +53,7 @@ const Calculator = () => {
         }
         setWorkedDays(worked);
         setLateDays(late);
-        
+
         // Extra working days logic: 4 week-offs allowed. Unused week-offs = extra working days.
         setExtraDays(Math.max(0, 4 - takenWeekOffs));
     }, [selEmpId, month, year, employees, attendance]);
@@ -71,29 +71,29 @@ const Calculator = () => {
     }, [selEmpId]);
 
     const results = useMemo(() => {
-        const safeBasic    = Number(basic)        || 0;
-        const safeWorked   = Number(workedDays)   || 0;
-        const safeOt       = Number(otHours)      || 0;
-        const safeEarly    = Number(earlyCount)   || 0;
-        const safeMorning  = Number(morningCount) || 0;
-        const safeBatch    = Number(batchCount)   || 0;
-        const safeAllowance = Number(allowance)   || 0;
-        const safeExtra    = Number(extraDays)    || 0;
-        const safePenalty  = Number(penalty)      || 0;
-        const safeExpense  = Number(expense)      || 0;
-        const safeLateDays = Number(lateDays)     || 0;
-        const safeReviews  = showReviews ? (Number(reviewCount) || 0) : 0; // ← NEW
+        const safeBasic = Number(basic) || 0;
+        const safeWorked = Number(workedDays) || 0;
+        const safeOt = Number(otHours) || 0;
+        const safeEarly = Number(earlyCount) || 0;
+        const safeMorning = Number(morningCount) || 0;
+        const safeBatch = Number(batchCount) || 0;
+        const safeAllowance = Number(allowance) || 0;
+        const safeExtra = Number(extraDays) || 0;
+        const safePenalty = Number(penalty) || 0;
+        const safeExpense = Number(expense) || 0;
+        const safeLateDays = Number(lateDays) || 0;
+        const safeReviews = showReviews ? (Number(reviewCount) || 0) : 0; // ← NEW
 
         const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const perDay      = safeBasic / daysInMonth;
+        const perDay = safeBasic / daysInMonth;
 
-        const basicAmt   = perDay * safeWorked;
-        const otAmt      = safeOt * 100;
-        const earlyAmt   = safeEarly * 200;
+        const basicAmt = perDay * safeWorked;
+        const otAmt = safeOt * 100;
+        const earlyAmt = safeEarly * 200;
         const morningAmt = safeMorning * 150;
-        const batchAmt   = safeBatch * 100;
-        const extraAmt   = safeExtra * perDay;
-        const reviewAmt  = safeReviews * 20; // ← NEW  ₹20 per review
+        const batchAmt = safeBatch * 100;
+        const extraAmt = safeExtra * perDay;
+        const reviewAmt = safeReviews * 20; // ← NEW  ₹20 per review
 
         let latePenaltyAmt = 0;
         if (rules?.lateType === 'halfday') {
@@ -104,7 +104,7 @@ const Calculator = () => {
 
         const totalAdd = basicAmt + otAmt + earlyAmt + morningAmt + batchAmt + safeAllowance + extraAmt + reviewAmt;
         const totalDed = safePenalty + safeExpense + latePenaltyAmt;
-        const net      = totalAdd - totalDed;
+        const net = totalAdd - totalDed;
 
         return {
             perDay, basicAmt, otAmt, earlyAmt, morningAmt, batchAmt,
@@ -136,22 +136,15 @@ const Calculator = () => {
 
         // ── Conditionally include the Reviews row in the download ──
         const reviewRow = showReviews
-            ? row('Reviews (+)', `₹${results.reviewAmt.toFixed(2)}`, '#16a34a')
+            ? row(`Reviews (${reviewCount || 0}) (+)`, `₹${results.reviewAmt.toFixed(2)}`, '#16a34a')
             : '';
 
         wrap.innerHTML = `
-            <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #1e293b;display:flex;justify-content:space-between;align-items:flex-end;">
-                <div>
-                    <p style="font-size:20px;font-weight:800;color:#1e293b;margin:0;">
-                        Salary Statement for <span style="color:#1e3a8a;text-decoration:underline;">${empName}</span>
-                    </p>
-                    <p style="font-size:13px;color:#64748b;margin:4px 0 0 0;">${MONTHS[month]} ${year}</p>
-                </div>
-                <div style="text-align:right;">
-                    <p style="font-size:16px;font-weight:700;color:#1e3a8a;margin:0;">
-                        Payable Days: ${(Number(workedDays) || 0) + (Number(extraDays) || 0)}
-                    </p>
-                </div>
+            <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #1e293b;">
+                <p style="font-size:20px;font-weight:800;color:#1e293b;margin:0;">
+                    Salary Statement for <span style="color:#1e3a8a;text-decoration:underline;">${empName}</span>
+                </p>
+                <p style="font-size:13px;color:#64748b;margin:4px 0 0 0;">${MONTHS[month]} ${year}</p>
             </div>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
                 <tbody>
@@ -160,21 +153,21 @@ const Calculator = () => {
                             <tr>
                                 <td style="width:50%;vertical-align:top;padding-right:32px;">
                                     <table style="width:100%;border-collapse:collapse;"><tbody>
-                                        ${row('Basic Salary', `₹${results.basicAmt.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`)}
-                                        ${row('Early Check-in', `₹${results.earlyAmt.toFixed(2)}`)}
-                                        ${row('Morning Batch', `₹${results.batchAmt.toFixed(2)}`)}
-                                        ${row('Extra Days (+)', `₹${results.extraAmt.toFixed(2)}`, '#16a34a')}
+                                        ${row(`Basic Salary (${workedDays || 0} Days)`, `₹${results.basicAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
+                                        ${row(`Early Check-in (${earlyCount || 0})`, `₹${results.earlyAmt.toFixed(2)}`)}
+                                        ${row(`Morning Batch (${batchCount || 0})`, `₹${results.batchAmt.toFixed(2)}`)}
+                                        ${row(`Extra Days (${extraDays || 0} Days) (+)`, `₹${results.extraAmt.toFixed(2)}`, '#16a34a')}
                                         ${reviewRow}
                                         ${row('Expense (-)', `₹${results.expense.toFixed(2)}`, '#dc2626')}
                                     </tbody></table>
                                 </td>
                                 <td style="width:50%;vertical-align:top;padding-left:32px;border-left:1px solid #e2e8f0;">
                                     <table style="width:100%;border-collapse:collapse;"><tbody>
-                                        ${row('OT Amount', `₹${results.otAmt.toFixed(2)}`)}
-                                        ${row('Morning Check-in', `₹${results.morningAmt.toFixed(2)}`)}
+                                        ${row(`OT Amount (${otHours || 0} Hrs)`, `₹${results.otAmt.toFixed(2)}`)}
+                                        ${row(`Morning Check-in (${morningCount || 0})`, `₹${results.morningAmt.toFixed(2)}`)}
                                         ${row('Allowance (+)', `₹${results.allowance.toFixed(2)}`, '#16a34a')}
                                         ${row('Penalty (-)', `₹${results.penalty.toFixed(2)}`, '#dc2626')}
-                                        ${row('Late Penalty (-)', `₹${results.latePenaltyAmt.toFixed(2)}`, '#dc2626')}
+                                        ${row(`Late Penalty (${lateDays || 0} Days) (-)`, `₹${results.latePenaltyAmt.toFixed(2)}`, '#dc2626')}
                                     </tbody></table>
                                 </td>
                             </tr>
@@ -184,7 +177,7 @@ const Calculator = () => {
             </table>
             <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-top:2px solid #1e293b;margin-top:8px;">
                 <span style="font-size:18px;font-weight:800;color:#1e293b;">Net Payable Salary</span>
-                <span style="font-size:28px;font-weight:900;color:#16a34a;">₹${results.net.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                <span style="font-size:28px;font-weight:900;color:#16a34a;">₹${results.net.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>`;
 
         document.body.appendChild(wrap);
@@ -327,31 +320,26 @@ const Calculator = () => {
                                 Salary Statement for{' '}
                                 <span className="name-highlight">{empName}</span>
                             </h3>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-                                    {MONTHS[month]} {year}
-                                </p>
-                                <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--primary)', margin: 0, padding: '2px 10px', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '12px' }}>
-                                    Payable Days: {(Number(workedDays) || 0) + (Number(extraDays) || 0)}
-                                </p>
-                            </div>
+                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                {MONTHS[month]} {year}
+                            </p>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px', marginBottom: '20px' }}>
                             {/* Left column */}
                             <div>
                                 {[
-                                    { label: 'Basic Salary',   value: `₹${results.basicAmt.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`, color: '#111827' },
-                                    { label: 'Early Check-in', value: `₹${results.earlyAmt.toFixed(2)}`,  color: '#111827' },
-                                    { label: 'Morning Batch',  value: `₹${results.batchAmt.toFixed(2)}`,  color: '#111827' },
-                                    { label: 'Extra Days (+)', value: `₹${results.extraAmt.toFixed(2)}`,  color: '#16a34a' },
+                                    { label: `Basic Salary (${workedDays || 0} Days)`, value: `₹${results.basicAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#111827' },
+                                    { label: `Early Check-in (${earlyCount || 0})`, value: `₹${results.earlyAmt.toFixed(2)}`, color: '#111827' },
+                                    { label: `Morning Batch (${batchCount || 0})`, value: `₹${results.batchAmt.toFixed(2)}`, color: '#111827' },
+                                    { label: `Extra Days (${extraDays || 0} Days) (+)`, value: `₹${results.extraAmt.toFixed(2)}`, color: '#16a34a' },
                                     // ── Reviews row (left column, only when applicable) ──
-                                    ...(showReviews ? [{ label: 'Reviews (+)', value: `₹${results.reviewAmt.toFixed(2)}`, color: '#16a34a' }] : []),
-                                    { label: 'Expense (-)',    value: `₹${results.expense.toFixed(2)}`,   color: '#dc2626' },
+                                    ...(showReviews ? [{ label: `Reviews (${reviewCount || 0}) (+)`, value: `₹${results.reviewAmt.toFixed(2)}`, color: '#16a34a' }] : []),
+                                    { label: 'Expense (-)', value: `₹${results.expense.toFixed(2)}`, color: '#dc2626' },
                                 ].map(({ label, value, color }) => (
-                                    <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f1f5f9' }}>
-                                        <span style={{ fontSize:'14px', color:'#374151', fontWeight:'500' }}>{label}</span>
-                                        <span style={{ fontSize:'14px', color, fontWeight:'700' }}>{value}</span>
+                                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                        <span style={{ fontSize: '14px', color: '#374151', fontWeight: '500' }}>{label}</span>
+                                        <span style={{ fontSize: '14px', color, fontWeight: '700' }}>{value}</span>
                                     </div>
                                 ))}
                             </div>
@@ -359,15 +347,15 @@ const Calculator = () => {
                             {/* Right column */}
                             <div>
                                 {[
-                                    { label: 'OT Amount',       value: `₹${results.otAmt.toFixed(2)}`,         color: '#111827' },
-                                    { label: 'Morning Check-in',value: `₹${results.morningAmt.toFixed(2)}`,    color: '#111827' },
-                                    { label: 'Allowance (+)',   value: `₹${results.allowance.toFixed(2)}`,     color: '#16a34a' },
-                                    { label: 'Penalty (-)',     value: `₹${results.penalty.toFixed(2)}`,       color: '#dc2626' },
-                                    { label: 'Late Penalty (-)',value: `₹${results.latePenaltyAmt.toFixed(2)}`,color: '#dc2626' },
+                                    { label: `OT Amount (${otHours || 0} Hrs)`, value: `₹${results.otAmt.toFixed(2)}`, color: '#111827' },
+                                    { label: `Morning Check-in (${morningCount || 0})`, value: `₹${results.morningAmt.toFixed(2)}`, color: '#111827' },
+                                    { label: 'Allowance (+)', value: `₹${results.allowance.toFixed(2)}`, color: '#16a34a' },
+                                    { label: 'Penalty (-)', value: `₹${results.penalty.toFixed(2)}`, color: '#dc2626' },
+                                    { label: `Late Penalty (${lateDays || 0} Days) (-)`, value: `₹${results.latePenaltyAmt.toFixed(2)}`, color: '#dc2626' },
                                 ].map(({ label, value, color }) => (
-                                    <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f1f5f9' }}>
-                                        <span style={{ fontSize:'14px', color:'#374151', fontWeight:'500' }}>{label}</span>
-                                        <span style={{ fontSize:'14px', color, fontWeight:'700' }}>{value}</span>
+                                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                        <span style={{ fontSize: '14px', color: '#374151', fontWeight: '500' }}>{label}</span>
+                                        <span style={{ fontSize: '14px', color, fontWeight: '700' }}>{value}</span>
                                     </div>
                                 ))}
                             </div>
@@ -375,7 +363,7 @@ const Calculator = () => {
 
                         <div className="net-salary">
                             <span className="net-label">Net Payable Salary</span>
-                            <span className="net-value">₹{results.net.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                            <span className="net-value">₹{results.net.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
 
                         <div className="download-row">
