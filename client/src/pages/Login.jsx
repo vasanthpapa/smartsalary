@@ -8,7 +8,7 @@ const Login = ({ onLogin }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     // Manual hardcoded credentials as requested
-    if (username === 'admin' && password === 'admin123') {
+    if (username === 'smartadmin@org' && password === 'smart@6789') {
       setError(false);
       onLogin();
     } else {
