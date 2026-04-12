@@ -12,18 +12,18 @@ const Calculator = () => {
     const [selEmpId, setSelEmpId]     = useState('');
     const [month, setMonth]           = useState(new Date().getMonth());
     const [year, setYear]             = useState(new Date().getFullYear());
-    const [basic, setBasic]           = useState(0);
-    const [workedDays, setWorkedDays] = useState(0);
-    const [otHours, setOtHours]       = useState(0);
-    const [earlyCount, setEarlyCount] = useState(0);
-    const [morningCount, setMorningCount] = useState(0);
-    const [batchCount, setBatchCount] = useState(0);
-    const [allowance, setAllowance]   = useState(0);
-    const [extraDays, setExtraDays]   = useState(0);
-    const [penalty, setPenalty]       = useState(0);
-    const [expense, setExpense]       = useState(0);
-    const [lateDays, setLateDays]     = useState(0);
-    const [reviewCount, setReviewCount] = useState(0); // ← NEW
+    const [basic, setBasic]           = useState('');
+    const [workedDays, setWorkedDays] = useState('');
+    const [otHours, setOtHours]       = useState('');
+    const [earlyCount, setEarlyCount] = useState('');
+    const [morningCount, setMorningCount] = useState('');
+    const [batchCount, setBatchCount] = useState('');
+    const [allowance, setAllowance]   = useState('');
+    const [extraDays, setExtraDays]   = useState('');
+    const [penalty, setPenalty]       = useState('');
+    const [expense, setExpense]       = useState('');
+    const [lateDays, setLateDays]     = useState('');
+    const [reviewCount, setReviewCount] = useState(''); // ← NEW
     const [showResult, setShowResult] = useState(false);
 
     // ── Determine if the selected employee gets the Reviews field ──
@@ -57,15 +57,15 @@ const Calculator = () => {
         // Extra working days logic: 4 week-offs allowed. Unused week-offs = extra working days.
         setExtraDays(Math.max(0, 4 - takenWeekOffs));
 
-        // Reset manual fields when employee changes
-        setOtHours(0);
-        setEarlyCount(0);
-        setMorningCount(0);
-        setBatchCount(0);
-        setAllowance(0);
-        setPenalty(0);
-        setExpense(0);
-        setReviewCount(0);
+        // Reset manual fields when employee changes to empty strings for better UX
+        setOtHours('');
+        setEarlyCount('');
+        setMorningCount('');
+        setBatchCount('');
+        setAllowance('');
+        setPenalty('');
+        setExpense('');
+        setReviewCount('');
     }, [selEmpId, month, year, employees, attendance]);
 
     const results = useMemo(() => {
