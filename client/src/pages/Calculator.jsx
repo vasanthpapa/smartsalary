@@ -56,8 +56,10 @@ const Calculator = () => {
         
         // Extra working days logic: 4 week-offs allowed. Unused week-offs = extra working days.
         setExtraDays(Math.max(0, 4 - takenWeekOffs));
+    }, [selEmpId, month, year, employees, attendance]);
 
-        // Reset manual fields when employee changes to empty strings for better UX
+    // ── Strictly reset manual fields ONLY when the employee selection changes ──
+    useEffect(() => {
         setOtHours('');
         setEarlyCount('');
         setMorningCount('');
@@ -66,7 +68,7 @@ const Calculator = () => {
         setPenalty('');
         setExpense('');
         setReviewCount('');
-    }, [selEmpId, month, year, employees, attendance]);
+    }, [selEmpId]);
 
     const results = useMemo(() => {
         const safeBasic    = Number(basic)        || 0;
