@@ -268,10 +268,10 @@ const Attendance = () => {
                         <div id="ind-calendar-container" style={{ width: '100%', minHeight: '440px', background: 'var(--sidebar-bg)', borderRadius: '24px', padding: '2rem', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 12px 40px rgba(0,0,0,0.3)' }}>
                             <div style={{ marginBottom: '2rem', borderBottom: '2px solid rgba(255,255,255,0.05)', paddingBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                    <select value={viewMonth} onChange={(e) => setViewMonth(parseInt(e.target.value))} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, padding: '8px 16px', borderRadius: '12px', fontSize: '1.1rem', cursor: 'pointer' }}>
+                                    <select value={viewMonth} onChange={(e) => setViewMonth(parseInt(e.target.value))} style={{ background: 'rgba(0, 0, 0, 0.05)', border: '1px solid rgba(0, 0, 0, 0.1)', color: 'var(--text-primary)', fontWeight: 800, padding: '8px 16px', borderRadius: '12px', fontSize: '1.1rem', cursor: 'pointer' }}>
                                         {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
                                     </select>
-                                    <input type="number" value={viewYear} onChange={(e) => setViewYear(parseInt(e.target.value))} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--primary)', fontWeight: 800, width: '110px', padding: '8px 16px', borderRadius: '12px', textAlign: 'center', fontSize: '1.1rem' }} />
+                                    <input type="number" value={viewYear} onChange={(e) => setViewYear(parseInt(e.target.value))} style={{ background: 'rgba(0, 0, 0, 0.05)', border: '1px solid rgba(0, 0, 0, 0.1)', color: 'var(--text-primary)', fontWeight: 800, width: '110px', padding: '8px 16px', borderRadius: '12px', textAlign: 'center', fontSize: '1.1rem' }} />
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
                                     <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block' }}>Report View</span>
@@ -312,7 +312,7 @@ const Attendance = () => {
                         </div>
                         <div className="report-document-wrapper">
                             <div id="report-capture-area" className="report-document">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '2px solid #eee', paddingBottom: '1rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '2px solid #c63f3f', paddingBottom: '1rem' }}>
                                     <div>
                                         <h1 style={{ color: '#1e293b', margin: 0, fontSize: '1.5rem' }}>WORKFORCE PRO</h1>
                                         <p style={{ color: '#64748b', fontSize: '0.8rem' }}>Premium HR Solutions</p>

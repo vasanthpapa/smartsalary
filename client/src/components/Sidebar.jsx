@@ -1,7 +1,7 @@
 import React from 'react';
-import { LayoutDashboard, Users, CalendarCheck, Calculator } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, Calculator, LogOut } from 'lucide-react';
 
-const Sidebar = ({ activePage, setPage }) => {
+const Sidebar = ({ activePage, setPage, onLogout }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'employees', label: 'Employees', icon: <Users size={18} /> },
@@ -10,12 +10,12 @@ const Sidebar = ({ activePage, setPage }) => {
   ];
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="logo">
         <div className="logo-t">WorkForce Pro</div>
         <div className="logo-s">Admin Panel</div>
       </div>
-      <nav className="nav">
+      <nav className="nav" style={{ flex: 1 }}>
         {menuItems.map(item => (
           <div 
             key={item.id}
@@ -26,6 +26,15 @@ const Sidebar = ({ activePage, setPage }) => {
           </div>
         ))}
       </nav>
+      <div style={{ padding: '16px 12px', borderTop: '1px solid var(--border-color)' }}>
+        <div 
+          className="ni"
+          onClick={onLogout}
+          style={{ color: 'var(--danger)', marginTop: 'auto' }}
+        >
+          <LogOut size={18} /> Logout
+        </div>
+      </div>
     </aside>
   );
 };

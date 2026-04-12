@@ -61,6 +61,12 @@ Required environment variable:
 
 - `MONGO_URI`
 
+Live save checklist:
+
+- `MONGO_URI` on Render must be the real MongoDB Atlas URI, not a placeholder like `YOURNEWPASSWORD`.
+- If `MONGO_URI` is missing or invalid, the app can only run in demo/local mode and reopened pages will not have true cloud persistence.
+- After changing `MONGO_URI` on Render, redeploy the backend and confirm `/health` reports storage available.
+
 ### Frontend on Vercel
 
 Use the `client` folder as the project root.

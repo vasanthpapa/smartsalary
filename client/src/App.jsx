@@ -8,15 +8,33 @@ import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Calculator from './pages/Calculator';
+import Login from './pages/Login';
 
 const App = () => {
-    const { loading, storageStatus, syncError, hasPendingSync, refreshData } = useWorkforce();
+    const { loading } = useWorkforce();
     const [page, setPage] = useState('dashboard');
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     useEffect(() => {
         const savedTheme = localStorage.getItem('wf_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        const authStatus = localStorage.getItem('wf_auth');
+        if (authStatus === 'true') {
+            setIsAuthenticated(true);
+        }
     }, []);
+
+    const handleLogin = () => {
+        setIsAuthenticated(true);
+        localStorage.setItem('wf_auth', 'true');
+    };
+
+    const handleLogout = () => {
+        setIsAuthenticated(false);
+        localStorage.removeItem('wf_auth');
+        setPage('dashboard');
+    };
 
     if (loading) {
         return (
@@ -29,19 +47,16 @@ const App = () => {
         );
     }
 
-    const showStorageBanner = Boolean(syncError) || Boolean(storageStatus && (storageStatus.available === false || storageStatus.persistent === false));
-    const bannerText = syncError || storageStatus?.message;
-    const bannerTone = hasPendingSync ? {
-        border: '1px solid rgba(251, 191, 36, 0.35)',
-        background: 'rgba(120, 53, 15, 0.22)',
-        color: '#fde68a',
-        buttonBorder: 'rgba(253, 230, 138, 0.45)'
-    } : {
-        border: '1px solid rgba(248, 113, 113, 0.35)',
-        background: 'rgba(127, 29, 29, 0.2)',
-        color: '#fecaca',
-        buttonBorder: 'rgba(252, 165, 165, 0.45)'
-    };
+    if (!isAuthenticated) {
+        return (
+            <div style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden' }}>
+                <div className="circle circle-1"></div>
+                <div className="circle circle-2"></div>
+                <Login onLogin={handleLogin} />
+                <div className="toast" id="toast"></div>
+            </div>
+        );
+    }
 
     const renderPage = () => {
         switch(page) {
@@ -60,37 +75,9 @@ const App = () => {
             <div className="circle circle-2"></div>
 
             <div className="app">
-                <Sidebar activePage={page} setPage={setPage} />
+                <Sidebar activePage={page} setPage={setPage} onLogout={handleLogout} />
                 <main className="main">
-                    <Topbar activePage={page} />
-                    {showStorageBanner && (
-                        <div
-                            style={{
-                                margin: '1.5rem 1.5rem 0',
-                                padding: '0.9rem 1rem',
-                                borderRadius: '16px',
-                                border: bannerTone.border,
-                                background: bannerTone.background,
-                                color: bannerTone.color,
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                gap: '1rem',
-                                alignItems: 'center',
-                                flexWrap: 'wrap'
-                            }}
-                        >
-                            <span style={{ fontSize: '0.92rem', lineHeight: 1.5 }}>
-                                {bannerText}
-                            </span>
-                            <button
-                                className="secondary-btn small-btn"
-                                onClick={refreshData}
-                                style={{ width: 'auto', borderColor: bannerTone.buttonBorder, color: bannerTone.color }}
-                            >
-                                {hasPendingSync ? 'Sync Saved Data' : 'Retry Sync'}
-                            </button>
-                        </div>
-                    )}
+                    <Topbar activePage={page} onLogout={handleLogout} />
                     <div className="content">
                         {renderPage()}
                     </div>
