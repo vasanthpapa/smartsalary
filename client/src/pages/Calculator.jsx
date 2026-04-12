@@ -218,48 +218,48 @@ const Calculator = () => {
                         <label>Monthly Basic Salary (₹)</label>
                         <div className="currency-input">
                             <span>₹</span>
-                            <input type="number" value={basic} onChange={(e) => setBasic(parseFloat(e.target.value) || 0)} />
+                            <input type="number" value={basic} onChange={(e) => setBasic(e.target.value)} />
                         </div>
                     </div>
                     <div className="input-group">
                         <label>Total Worked Days</label>
-                        <input type="number" value={workedDays} onChange={(e) => setWorkedDays(parseFloat(e.target.value) || 0)} step="0.5" />
+                        <input type="number" value={workedDays} onChange={(e) => setWorkedDays(e.target.value)} step="0.5" />
                     </div>
                     <div className="input-group">
                         <label>Early Check-in (₹200)</label>
-                        <input type="number" value={earlyCount} onChange={(e) => setEarlyCount(parseInt(e.target.value) || 0)} />
+                        <input type="number" value={earlyCount} onChange={(e) => setEarlyCount(e.target.value)} />
                     </div>
                     <div className="input-group">
                         <label>Morning Check-in (₹150)</label>
-                        <input type="number" value={morningCount} onChange={(e) => setMorningCount(parseInt(e.target.value) || 0)} />
+                        <input type="number" value={morningCount} onChange={(e) => setMorningCount(e.target.value)} />
                     </div>
                     <div className="input-group">
                         <label>Morning Batch (₹100)</label>
-                        <input type="number" value={batchCount} onChange={(e) => setBatchCount(parseInt(e.target.value) || 0)} />
+                        <input type="number" value={batchCount} onChange={(e) => setBatchCount(e.target.value)} />
                     </div>
                     <div className="input-group">
                         <label>Allowance (Addition ₹)</label>
-                        <input type="number" value={allowance} onChange={(e) => setAllowance(parseFloat(e.target.value) || 0)} className="input-added" />
+                        <input type="number" value={allowance} onChange={(e) => setAllowance(e.target.value)} className="input-added" />
                     </div>
                     <div className="input-group">
                         <label>Penalty (Deduction ₹)</label>
-                        <input type="number" value={penalty} onChange={(e) => setPenalty(parseFloat(e.target.value) || 0)} className="input-deducted" />
+                        <input type="number" value={penalty} onChange={(e) => setPenalty(e.target.value)} className="input-deducted" />
                     </div>
                     <div className="input-group">
                         <label>Expense (Deduction ₹)</label>
-                        <input type="number" value={expense} onChange={(e) => setExpense(parseFloat(e.target.value) || 0)} className="input-deducted" />
+                        <input type="number" value={expense} onChange={(e) => setExpense(e.target.value)} className="input-deducted" />
                     </div>
                     <div className="input-group">
                         <label>Late Check-in (Days)</label>
-                        <input type="number" value={lateDays} onChange={(e) => setLateDays(parseInt(e.target.value) || 0)} />
+                        <input type="number" value={lateDays} onChange={(e) => setLateDays(e.target.value)} />
                     </div>
                     <div className="input-group">
                         <label>Extra working Days</label>
-                        <input type="number" value={extraDays} onChange={(e) => setExtraDays(parseFloat(e.target.value) || 0)} />
+                        <input type="number" value={extraDays} onChange={(e) => setExtraDays(e.target.value)} />
                     </div>
                     <div className="input-group full-width">
                         <label>Overtime Hours (₹100/hr)</label>
-                        <input type="number" value={otHours} onChange={(e) => setOtHours(parseFloat(e.target.value) || 0)} />
+                        <input type="number" value={otHours} onChange={(e) => setOtHours(e.target.value)} />
                     </div>
 
                     {/* ── Reviews field — visible only for Gunasri, Shreesha, Vishnu ── */}
