@@ -19,7 +19,7 @@ const App = () => {
         const savedTheme = localStorage.getItem('wf_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
         
-        const authStatus = localStorage.getItem('wf_auth');
+        const authStatus = sessionStorage.getItem('wf_auth');
         if (authStatus === 'true') {
             setIsAuthenticated(true);
         }
@@ -27,12 +27,12 @@ const App = () => {
 
     const handleLogin = () => {
         setIsAuthenticated(true);
-        localStorage.setItem('wf_auth', 'true');
+        sessionStorage.setItem('wf_auth', 'true');
     };
 
     const handleLogout = () => {
         setIsAuthenticated(false);
-        localStorage.removeItem('wf_auth');
+        sessionStorage.removeItem('wf_auth');
         setPage('dashboard');
     };
 

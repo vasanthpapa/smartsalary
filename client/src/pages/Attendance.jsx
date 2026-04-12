@@ -46,27 +46,7 @@ const Attendance = () => {
         });
     };
 
-    useEffect(() => {
-        if (isLocked || !hasUserEditedRef.current || tempBulk.length === 0 || bulkDraft.key !== bulkDraftKey) return;
-
-        const autosaveTimer = setTimeout(async () => {
-            try {
-                const records = tempBulk.map(item => ({
-                    date: selectedDate,
-                    employeeId: item.id,
-                    status: item.status,
-                    time: item.time
-                }));
-                await saveBulkAttendance(records);
-                hasUserEditedRef.current = false;
-                setIsManuallyUnlocked(false);
-            } catch (error) {
-                console.error('Auto-save attendance failed:', error);
-            }
-        }, 500);
-
-        return () => clearTimeout(autosaveTimer);
-    }, [bulkDraft.key, bulkDraftKey, isLocked, saveBulkAttendance, selectedDate, tempBulk]);
+// Autosave logic removed to allow multiple edits before manual lockdown.
 
     const handleSaveBulk = async () => {
         const records = tempBulk.map(item => ({
