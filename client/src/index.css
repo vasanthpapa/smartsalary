@@ -423,10 +423,17 @@ tr:hover td {
 @media (max-width: 768px) {
     .input-grid, .input-grid.form-grid, .two-col { grid-template-columns: 1fr; }
     .full-width { grid-column: span 1; }
-    .app { flex-direction: column; }
-    .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border-color); }
-    .nav { display: flex; overflow-x: auto; padding: 10px; }
-    .ni { margin-bottom: 0; margin-right: 8px; white-space: nowrap; }
+    
+    body { height: auto; min-height: 100vh; overflow-y: auto; display: block; }
+    .app { flex-direction: column; height: auto; min-height: 100vh; display: flex; }
+    .sidebar { width: 100%; height: auto; flex-shrink: 0; border-right: none; border-bottom: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .nav { display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; padding: 10px; flex: none; }
+    .ni { margin-bottom: 0; margin-right: 8px; white-space: nowrap; flex-shrink: 0; }
+    .logout-container { display: flex; /* keep it in document flow */ }
+    
+    .main { display: flex; flex-direction: column; height: auto; min-height: 100vh; overflow-y: visible; flex: 1; }
+    .content { padding: 15px; } /* reduce padding on mobile */
+    .topbar { padding: 15px; position: sticky; top: 0; }
 }
 
 .input-group {

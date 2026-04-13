@@ -10,12 +10,12 @@ const Sidebar = ({ activePage, setPage, onLogout }) => {
   ];
 
   return (
-    <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <aside className="sidebar">
       <div className="logo">
         <div className="logo-t">WorkForce Pro</div>
         <div className="logo-s">Admin Panel</div>
       </div>
-      <nav className="nav" style={{ flex: 1 }}>
+      <nav className="nav">
         {menuItems.map(item => (
           <div 
             key={item.id}
@@ -25,8 +25,9 @@ const Sidebar = ({ activePage, setPage, onLogout }) => {
             {item.icon} {item.label}
           </div>
         ))}
+        {/* Mobile View: Include Logout in nav or adapt layout, but simply removing height fix it */}
       </nav>
-      <div style={{ padding: '16px 12px', borderTop: '1px solid var(--border-color)' }}>
+      <div className="logout-container" style={{ padding: '16px 12px', borderTop: '1px solid var(--border-color)' }}>
         <div 
           className="ni"
           onClick={onLogout}

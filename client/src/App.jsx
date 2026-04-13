@@ -49,7 +49,7 @@ const App = () => {
 
     if (!isAuthenticated) {
         return (
-            <div style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden' }}>
+            <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
                 <div className="circle circle-1"></div>
                 <div className="circle circle-2"></div>
                 <Login onLogin={handleLogin} />
@@ -69,7 +69,7 @@ const App = () => {
     };
 
     return (
-        <div style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
             {/* Background Decorations */}
             <div className="circle circle-1"></div>
             <div className="circle circle-2"></div>
