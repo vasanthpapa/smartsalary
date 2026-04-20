@@ -36,7 +36,7 @@ app.use(express.json());
 let mockEmployees = [
     { id: 'E1', name: 'Arunkumar', role: 'Web developer', dept: 'Operations', salary: 18200, checkin: '09:00', weekoffs: [0] },
     { id: 'E2', name: 'Sireesha', role: 'RM', dept: 'Operations', salary: 17010, checkin: '09:00', weekoffs: [0] },
-    { id: 'E3', name: 'Vasanth', role: 'Data Admin', dept: 'Operations', salary: 12000, checkin: 'flexible', weekoffs: [0] },
+    { id: 'E3', name: 'Vasanth', role: 'Data Admin', dept: 'Operations', salary: 12000, checkin: '09:00', weekoffs: [0] },
     { id: 'E4', name: 'Devesh', role: 'Media Admin', dept: 'Operations', salary: 15348, checkin: '09:00', weekoffs: [0] },
     { id: 'E5', name: 'Naresh', role: 'Media', dept: 'Operations', salary: 12000, checkin: '09:00', weekoffs: [0] },
     { id: 'E6', name: 'Shruthi', role: 'Media', dept: 'Operations', salary: 11000, checkin: '09:00', weekoffs: [0] },
