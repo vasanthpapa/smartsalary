@@ -11,28 +11,16 @@ import Calculator from './pages/Calculator';
 import Login from './pages/Login';
 
 const App = () => {
-    const { loading } = useWorkforce();
+    const { loading, token, logout } = useWorkforce();
     const [page, setPage] = useState('dashboard');
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     useEffect(() => {
         const savedTheme = localStorage.getItem('wf_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
-        
-        const authStatus = sessionStorage.getItem('wf_auth');
-        if (authStatus === 'true') {
-            setIsAuthenticated(true);
-        }
     }, []);
 
-    const handleLogin = () => {
-        setIsAuthenticated(true);
-        sessionStorage.setItem('wf_auth', 'true');
-    };
-
     const handleLogout = () => {
-        setIsAuthenticated(false);
-        sessionStorage.removeItem('wf_auth');
+        logout();
         setPage('dashboard');
     };
 
@@ -47,12 +35,12 @@ const App = () => {
         );
     }
 
-    if (!isAuthenticated) {
+    if (!token) {
         return (
             <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
                 <div className="circle circle-1"></div>
                 <div className="circle circle-2"></div>
-                <Login onLogin={handleLogin} />
+                <Login />
                 <div className="toast" id="toast"></div>
             </div>
         );

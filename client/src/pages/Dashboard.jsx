@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useWorkforce } from '../context/workforceShared';
+import MonthlyLateTracker from '../components/MonthlyLateTracker';
 
 const Dashboard = () => {
     const { employees, attendance } = useWorkforce();
@@ -107,6 +108,8 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
+
+            <MonthlyLateTracker />
         </div>
     );
 };

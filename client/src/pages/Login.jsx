@@ -1,22 +1,25 @@
 import React, { useState } from 'react';
+import { useWorkforce } from '../context/workforceShared';
 
-const Login = ({ onLogin }) => {
-  const [username, setUsername] = useState('');
+const Login = () => {
+  const { login } = useWorkforce();
+  const [username, setUsername] = useState('smartadmin@org');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Manual hardcoded credentials as requested
-    if (username === 'smartadmin@org' && password === 'smart@6789') {
-      setError(false);
-      onLogin();
-    } else {
-      setError(true);
-      // Show toast
+    setErrorText('');
+    setLoading(true);
+    try {
+      await login(username, password);
+    } catch (err) {
+      setErrorText(err.response?.data?.error || 'Login failed. Try again.');
+      setLoading(false);
       const toast = document.getElementById('toast');
       if (toast) {
-        toast.textContent = 'Invalid credentials. Please try again.';
+        toast.textContent = errorText || 'Invalid credentials. Please try again.';
         toast.className = 'toast show error';
         setTimeout(() => toast.className = 'toast', 3000);
       }
@@ -62,15 +65,15 @@ const Login = ({ onLogin }) => {
             />
           </div>
 
-          {error && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', textAlign: 'center' }}>Incorrect username or password.</div>}
+          {errorText && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', textAlign: 'center' }}>{errorText}</div>}
 
-          <button type="submit" className="primary-btn" style={{ marginTop: '0.5rem' }}>
-            Login
+          <button type="submit" className="primary-btn" disabled={loading} style={{ marginTop: '0.5rem' }}>
+            {loading ? 'Authenticating...' : 'Login'}
           </button>
         </form>
 
         <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          <p>Login with </p>
+          <p>Login securely.</p>
         </div>
       </div>
     </div>

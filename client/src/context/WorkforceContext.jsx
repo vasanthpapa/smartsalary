@@ -3,6 +3,30 @@ import axios from 'axios';
 import io from 'socket.io-client';
 import { API_BASE, defaultRules, WorkforceContext } from './workforceShared';
 
+axios.interceptors.request.use(config => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('wf_auth_token') : null;
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+axios.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            if (typeof window !== 'undefined') {
+                const url = new URL(error.config.url, window.location.origin);
+                if (url.pathname !== '/api/auth/login') {
+                    localStorage.removeItem('wf_auth_token');
+                    window.location.reload();
+                }
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 const LOCAL_CACHE_KEY = 'wf_data_cache';
 const LOCAL_SYNC_META_KEY = 'wf_sync_meta';
 const DEFAULT_STORAGE_STATUS = {
@@ -84,6 +108,7 @@ const isRecoverableSyncFailure = (error) => (
 const isNotFoundError = (error) => error?.response?.status === 404;
 
 export const WorkforceProvider = ({ children }) => {
+    const [token, setToken] = useState(() => typeof window !== 'undefined' ? localStorage.getItem('wf_auth_token') : null);
     const cachedState = readCachedState();
     const cachedSyncMeta = readSyncMeta();
     const [employees, setEmployees] = useState(cachedState.employees);
@@ -93,6 +118,19 @@ export const WorkforceProvider = ({ children }) => {
     const [storageStatus, setStorageStatus] = useState(DEFAULT_STORAGE_STATUS);
     const [syncError, setSyncError] = useState(null);
     const [hasPendingSync, setHasPendingSync] = useState(cachedSyncMeta.hasPendingSync);
+
+    const login = async (username, password) => {
+        const res = await axios.post(`${API_BASE}/api/auth/login`, { username, password });
+        const newToken = res.data.token;
+        localStorage.setItem('wf_auth_token', newToken);
+        setToken(newToken);
+        return true;
+    };
+
+    const logout = () => {
+        localStorage.removeItem('wf_auth_token');
+        setToken(null);
+    };
 
     const captureSyncError = useCallback((error, fallbackMessage) => {
         const nextStatus = error?.response?.data?.storage;
@@ -263,7 +301,8 @@ export const WorkforceProvider = ({ children }) => {
         });
 
         return () => newSocket.close();
-    }, [refreshData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Persist every state change to localStorage
     useEffect(() => {
@@ -356,6 +395,9 @@ export const WorkforceProvider = ({ children }) => {
     };
 
     const value = {
+        token,
+        login,
+        logout,
         employees,
         attendance,
         rules,
