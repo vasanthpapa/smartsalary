@@ -18,8 +18,11 @@ axios.interceptors.response.use(
             if (typeof window !== 'undefined') {
                 const url = new URL(error.config.url, window.location.origin);
                 if (url.pathname !== '/api/auth/login') {
-                    localStorage.removeItem('wf_auth_token');
-                    window.location.reload();
+                    const existingToken = localStorage.getItem('wf_auth_token');
+                    if (existingToken) {
+                        localStorage.removeItem('wf_auth_token');
+                        window.location.reload();
+                    }
                 }
             }
         }
@@ -123,6 +126,7 @@ export const WorkforceProvider = ({ children }) => {
         const res = await axios.post(`${API_BASE}/api/auth/login`, { username, password });
         const newToken = res.data.token;
         localStorage.setItem('wf_auth_token', newToken);
+        setLoading(true);
         setToken(newToken);
         return true;
     };
@@ -291,6 +295,11 @@ export const WorkforceProvider = ({ children }) => {
     }, [applyServerSnapshot, captureSyncError, fetchLegacySnapshot, hasPendingSync, markPendingSync, syncLocalCacheToServer]);
 
     useEffect(() => {
+        if (!token) {
+            setLoading(false);
+            return;
+        }
+
         refreshData();
 
         const newSocket = io(API_BASE);
@@ -302,7 +311,7 @@ export const WorkforceProvider = ({ children }) => {
 
         return () => newSocket.close();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [token]);
 
     // Persist every state change to localStorage
     useEffect(() => {
