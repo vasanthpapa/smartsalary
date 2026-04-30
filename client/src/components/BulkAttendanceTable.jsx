@@ -155,75 +155,63 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                 </div>
             </div>
 
-            <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
-                <table className="bulk-att-table">
-                    <thead>
-                        <tr>
-                            <th>Employee Name</th>
-                            <th>Attendance Status & Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tempBulk.map(emp => (
-                            <tr key={emp.id}>
-                                <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <div className="av">{emp.name[0]}</div>
-                                        <span>{emp.name}</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                        {['present', 'late', 'absent', 'weekoff', 'half-day', 'sick_leave', 'holiday'].map(st => (
-                                            <span
-                                                key={st}
-                                                className={`status-chip ${emp.status === st ? 'active' : ''}`}
-                                                data-status={st}
-                                                onClick={() => !isLocked && updateTemp(emp.id, { status: st })}
-                                                title={isLocked ? 'Attendance is locked. Click Edit to modify.' : ''}
-                                                style={{ cursor: isLocked ? 'not-allowed' : 'pointer', opacity: isLocked && emp.status !== st ? 0.4 : 1, transition: 'opacity 0.2s' }}
-                                            >
-                                                {st.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px', flexWrap: 'wrap' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>IN:</span>
-                                            <input
-                                                type="time"
-                                                value={emp.time}
-                                                className="bulk-time-input"
-                                                disabled={isLocked || emp.isBiometric}
-                                                style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', width: '85px', color: 'var(--warning)', fontWeight: 700, cursor: isLocked || emp.isBiometric ? 'not-allowed' : 'text' }}
-                                                onChange={(e) => updateTemp(emp.id, { time: e.target.value })}
-                                            />
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>OUT:</span>
-                                            <input
-                                                type="time"
-                                                value={emp.outTime !== '--:--' ? emp.outTime : ''}
-                                                className="bulk-time-input"
-                                                disabled={isLocked || emp.isBiometric}
-                                                style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', width: '85px', color: 'var(--warning)', fontWeight: 700, cursor: isLocked || emp.isBiometric ? 'not-allowed' : 'text' }}
-                                                onChange={(e) => updateTemp(emp.id, { outTime: e.target.value })}
-                                            />
-                                        </div>
-                                        {emp.workTime && emp.workTime !== '--:--' && (
-                                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary)' }}>
-                                                {emp.workTime} hrs
-                                            </div>
-                                        )}
-                                        {emp.isBiometric && (
-                                            <span style={{ fontSize: '0.7rem', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '12px' }}>Biometric Sync</span>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px', marginTop: '1rem' }}>
+                {tempBulk.map(emp => (
+                    <div key={emp.id} style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(148, 163, 184, 0.2)', paddingBottom: '12px' }}>
+                            <div className="av">{emp.name[0]}</div>
+                            <span style={{ fontWeight: 'bold', fontSize: '1.05rem', color: 'var(--text-primary)' }}>{emp.name}</span>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {['present', 'late', 'absent', 'weekoff', 'half-day', 'sick_leave', 'holiday'].map(st => (
+                                <span
+                                    key={st}
+                                    className={`status-chip ${emp.status === st ? 'active' : ''}`}
+                                    data-status={st}
+                                    onClick={() => !isLocked && updateTemp(emp.id, { status: st })}
+                                    title={isLocked ? 'Attendance is locked. Click Edit to modify.' : ''}
+                                    style={{ cursor: isLocked ? 'not-allowed' : 'pointer', opacity: isLocked && emp.status !== st ? 0.4 : 1, transition: 'opacity 0.2s', padding: '4px 10px', fontSize: '0.75rem' }}
+                                >
+                                    {st.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                </span>
+                            ))}
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '6px 10px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>IN:</span>
+                                <input
+                                    type="time"
+                                    value={emp.time}
+                                    className="bulk-time-input"
+                                    disabled={isLocked || emp.isBiometric}
+                                    style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', width: '85px', color: 'var(--warning)', fontWeight: 700, cursor: isLocked || emp.isBiometric ? 'not-allowed' : 'text' }}
+                                    onChange={(e) => updateTemp(emp.id, { time: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '6px 10px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>OUT:</span>
+                                <input
+                                    type="time"
+                                    value={emp.outTime !== '--:--' ? emp.outTime : ''}
+                                    className="bulk-time-input"
+                                    disabled={isLocked || emp.isBiometric}
+                                    style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', width: '85px', color: 'var(--warning)', fontWeight: 700, cursor: isLocked || emp.isBiometric ? 'not-allowed' : 'text' }}
+                                    onChange={(e) => updateTemp(emp.id, { outTime: e.target.value })}
+                                />
+                            </div>
+                            {emp.workTime && emp.workTime !== '--:--' && (
+                                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary)' }}>
+                                    {emp.workTime} hrs
+                                </div>
+                            )}
+                            {emp.isBiometric && (
+                                <span style={{ fontSize: '0.7rem', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '12px' }}>Biometric</span>
+                            )}
+                        </div>
+                    </div>
+                ))}
             </div>
             {!isLocked && (
                 <div className="action-row" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
