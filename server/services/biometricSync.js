@@ -86,33 +86,28 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
 
         const recordsToUpdate = [];
 
-        for (const record of punchData) {
-            const empId = record.Empcode;
-            let emp = empMap[empId];
-
+        for (const emp of employees) {
+            // Find their punch record from the biometric data
+            let record = punchData.find(p => p.Empcode === emp.id);
+            
             // Fallback: Try to match by name if ID doesn't match
-            if (!emp && record.Name) {
-                const biometricName = record.Name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const matchedNameKey = Object.keys(nameMap).find(localName =>
-                    biometricName.includes(localName) || localName.includes(biometricName)
-                );
-                if (matchedNameKey) {
-                    emp = nameMap[matchedNameKey];
-                    console.log(`[BiometricSync] Mapped Biometric ID ${empId} (${record.Name}) to Local Employee ${emp.id} (${emp.name}) via Name Match`);
+            if (!record && emp.name) {
+                const localName = emp.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                record = punchData.find(p => p.Name && p.Name.toLowerCase().replace(/[^a-z0-9]/g, '') === localName);
+                if (record) {
+                    console.log(`[BiometricSync] Mapped Biometric ID ${record.Empcode} (${record.Name}) to Local Employee ${emp.id} (${emp.name}) via Name Match`);
                 }
             }
 
-            if (!emp) continue; // Skip if employee not in our system
+            const inTime = record?.INTime && record.INTime !== '--:--' ? record.INTime : '';
+            const outTime = record?.OUTTime && record.OUTTime !== '--:--' ? record.OUTTime : '';
+            const workTime = record?.WorkTime && record.WorkTime !== '--:--' ? record.WorkTime : '';
 
-            const inTime = record.INTime !== '--:--' ? record.INTime : '';
-            const outTime = record.OUTTime !== '--:--' ? record.OUTTime : '';
-            const workTime = record.WorkTime !== '--:--' ? record.WorkTime : '';
-
-            if (!inTime && !outTime) continue; // No punch data at all
-
-            let finalStatus = 'present';
+            let finalStatus = '';
 
             if (inTime) {
+                finalStatus = 'present';
+                
                 // Apply late logic (10 mins grace)
                 const checkInTime = emp.checkin || '09:00';
                 const limitTime = addMinutesToTime(checkInTime, 10);
@@ -120,11 +115,14 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
                 if (inTime > limitTime) {
                     finalStatus = 'late';
                 }
-            }
 
-            if (outTime && outTime < '13:00') {
                 // Apply half-day logic
-                finalStatus = 'half-day';
+                if (outTime && outTime < '13:00') {
+                    finalStatus = 'half-day';
+                }
+            } else {
+                // If there is NO punch in, mark them as weekoff automatically
+                finalStatus = 'weekoff';
             }
 
             recordsToUpdate.push({
