@@ -37,6 +37,7 @@ const Employees = () => {
         setShowBioDropdown(false);
         setIsFormOpen(!isFormOpen);
         if (!isFormOpen) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             document.querySelector('.main')?.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
@@ -54,6 +55,7 @@ const Employees = () => {
         });
         setShowBioDropdown(false);
         setIsFormOpen(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         document.querySelector('.main')?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 

@@ -112,8 +112,8 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
 
     return (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
-            <div className="ch">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="ch" style={{ flexWrap: 'wrap', gap: '15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                     <span className="ct">Bulk Attendance Marking</span>
                     {isLocked ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '20px', padding: '3px 12px', fontSize: '0.75rem', fontWeight: 700 }}>
@@ -125,7 +125,7 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                         </span>
                     )}
                 </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     {isLocked && (
                         <button
                             className="secondary-btn small-btn"
@@ -187,7 +187,7 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                                             </span>
                                         ))}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px', flexWrap: 'wrap' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
                                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>IN:</span>
                                             <input
