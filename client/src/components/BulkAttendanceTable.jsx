@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useWorkforce } from '../context/workforceShared';
 import { FileText, Lock, Unlock } from 'lucide-react';
+import axios from 'axios';
+import { API_BASE } from '../context/workforceShared';
 
 const BulkAttendanceTable = ({ onOpenReport }) => {
     const { employees, attendance, saveBulkAttendance } = useWorkforce();
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const selectedDateAttendance = useMemo(() => attendance[selectedDate] || {}, [attendance, selectedDate]);
     const hasSavedAttendance = Object.keys(selectedDateAttendance).length > 0;
@@ -13,8 +16,11 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
         return employees.map(emp => ({
             id: emp.id,
             name: emp.name,
-            status: selectedDateAttendance[emp.id]?.status || 'present',
-            time: selectedDateAttendance[emp.id]?.time || emp.checkin || '09:00'
+            status: selectedDateAttendance[emp.id]?.status || '',
+            time: selectedDateAttendance[emp.id]?.time || emp.checkin || '09:00',
+            outTime: selectedDateAttendance[emp.id]?.outTime || '',
+            workTime: selectedDateAttendance[emp.id]?.workTime || '',
+            isBiometric: selectedDateAttendance[emp.id]?.isBiometric || false
         }));
     }, [employees, selectedDateAttendance]);
 
@@ -38,16 +44,70 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
     };
 
     const handleSaveBulk = async () => {
-        const records = tempBulk.map(item => ({
-            date: selectedDate,
-            employeeId: item.id,
-            status: item.status,
-            time: item.time
-        }));
+        const records = tempBulk
+            .filter(item => item.status)
+            .map(item => ({
+                date: selectedDate,
+                employeeId: item.id,
+                status: item.status,
+                time: item.time,
+                outTime: item.outTime,
+                workTime: item.workTime,
+                isBiometric: item.isBiometric
+            }));
         await saveBulkAttendance(records);
         hasUserEditedRef.current = false;
         setIsManuallyUnlocked(false);
         alert("Attendance saved!");
+    };
+
+    const handleBiometricSync = async () => {
+        setIsSyncing(true);
+        try {
+            const token = localStorage.getItem('wf_auth_token');
+            const res = await fetch(`${API_BASE || 'http://localhost:3000'}/api/attendance/sync/etimeoffice`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ date: selectedDate, preview: true })
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (data.records && data.records.length > 0) {
+                    setBulkDraft(prev => {
+                        const currentEntries = prev.key === bulkDraftKey ? prev.entries : bulkEntries;
+                        const newEntries = currentEntries.map(emp => {
+                            const syncedRecord = data.records.find(r => r.employeeId === emp.id);
+                            if (syncedRecord) {
+                                return {
+                                    ...emp,
+                                    time: syncedRecord.time || emp.time,
+                                    outTime: syncedRecord.outTime || emp.outTime,
+                                    workTime: syncedRecord.workTime || emp.workTime,
+                                    status: syncedRecord.status || emp.status,
+                                    isBiometric: true
+                                };
+                            }
+                            return emp;
+                        });
+                        hasUserEditedRef.current = true;
+                        return { key: bulkDraftKey, entries: newEntries };
+                    });
+                    // Temporarily unlock the UI so the user can save the fetched data
+                    setIsManuallyUnlocked(true);
+                    alert(`Fetched ${data.records.length} records! Review the table and click 'Save All Attendance' to update the database.`);
+                } else {
+                    alert('No biometric records found for this date.');
+                }
+            } else {
+                alert(`Sync failed: ${data.error}`);
+            }
+        } catch (e) {
+            alert('Error syncing biometric data');
+        }
+        setIsSyncing(false);
     };
 
     return (
@@ -75,6 +135,9 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                             <Unlock size={14} /> Edit
                         </button>
                     )}
+                    <button className="secondary-btn small-btn" onClick={handleBiometricSync} disabled={isSyncing} style={{ borderColor: '#3b82f6', color: '#3b82f6', padding: '0.25rem 0.75rem' }}>
+                        {isSyncing ? 'Syncing...' : 'Sync Biometric'}
+                    </button>
                     <button className="secondary-btn small-btn" onClick={onOpenReport} style={{ borderColor: 'var(--primary)', color: 'var(--primary)', padding: '0.25rem 0.75rem' }}>
                         <FileText size={16} /> Monthly Report
                     </button>
@@ -123,19 +186,37 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                                                 {st.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                                             </span>
                                         ))}
-
-                                        {emp.status === 'late' && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)', marginLeft: '10px' }}>
-                                                <span style={{ fontSize: '1.1rem' }}>🕙</span>
-                                                <input
-                                                    type="time"
-                                                    value={emp.time}
-                                                    className="bulk-time-input"
-                                                    disabled={isLocked}
-                                                    style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', width: '85px', color: 'var(--warning)', fontWeight: 700, cursor: isLocked ? 'not-allowed' : 'text' }}
-                                                    onChange={(e) => updateTemp(emp.id, { time: e.target.value })}
-                                                />
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>IN:</span>
+                                            <input
+                                                type="time"
+                                                value={emp.time}
+                                                className="bulk-time-input"
+                                                disabled={isLocked || emp.isBiometric}
+                                                style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', width: '85px', color: 'var(--warning)', fontWeight: 700, cursor: isLocked || emp.isBiometric ? 'not-allowed' : 'text' }}
+                                                onChange={(e) => updateTemp(emp.id, { time: e.target.value })}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '10px', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>OUT:</span>
+                                            <input
+                                                type="time"
+                                                value={emp.outTime !== '--:--' ? emp.outTime : ''}
+                                                className="bulk-time-input"
+                                                disabled={isLocked || emp.isBiometric}
+                                                style={{ border: 'none', background: 'transparent', padding: 0, height: 'auto', width: '85px', color: 'var(--warning)', fontWeight: 700, cursor: isLocked || emp.isBiometric ? 'not-allowed' : 'text' }}
+                                                onChange={(e) => updateTemp(emp.id, { outTime: e.target.value })}
+                                            />
+                                        </div>
+                                        {emp.workTime && emp.workTime !== '--:--' && (
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary)' }}>
+                                                {emp.workTime} hrs
                                             </div>
+                                        )}
+                                        {emp.isBiometric && (
+                                            <span style={{ fontSize: '0.7rem', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '12px' }}>Biometric Sync</span>
                                         )}
                                     </div>
                                 </td>

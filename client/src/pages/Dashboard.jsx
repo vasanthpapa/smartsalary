@@ -53,7 +53,7 @@ const Dashboard = () => {
             </div>
 
             <div className="two-col">
-                <div className="card">
+                <div className="card" style={{ height: 'fit-content' }}>
                     <div className="ch"><span className="ct">Today's Attendance</span></div>
                     <div style={{ overflowX: 'auto' }}>
                         <table>
@@ -92,24 +92,26 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                <div className="card">
-                    <div className="ch"><span className="ct">Late Check-in Alerts</span></div>
-                    <div id="late-alerts">
-                        {lateAlerts.length > 0 ? (
-                            lateAlerts.map((alert, idx) => (
-                                <div key={idx} className="stagger-row" style={{ background: 'rgba(245,158,11,0.1)', padding: '12px', borderRadius: '10px', marginBottom: '8px', borderLeft: '3px solid #f59e0b' }}>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{alert.name}</div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Checked in at {alert.time}</div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="empty-state">No late check-ins recorded today.</div>
-                        )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div className="card" style={{ marginBottom: 0, height: 'fit-content' }}>
+                        <div className="ch" style={{ marginBottom: '10px' }}><span className="ct">Late Check-in Alerts</span></div>
+                        <div id="late-alerts" style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                            {lateAlerts.length > 0 ? (
+                                lateAlerts.map((alert, idx) => (
+                                    <div key={idx} className="stagger-row" style={{ background: 'rgba(245,158,11,0.1)', padding: '12px', borderRadius: '10px', marginBottom: '8px', borderLeft: '3px solid #f59e0b' }}>
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{alert.name}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Checked in at {alert.time}</div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="empty-state">No late check-ins recorded today.</div>
+                            )}
+                        </div>
                     </div>
+
+                    <MonthlyLateTracker />
                 </div>
             </div>
-
-            <MonthlyLateTracker />
         </div>
     );
 };

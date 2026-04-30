@@ -83,7 +83,10 @@ const mergeAttendanceRecord = (prevAttendance, record) => ({
         ...(prevAttendance[record.date] || {}),
         [record.employeeId]: {
             status: record.status,
-            time: record.time
+            time: record.time,
+            outTime: record.outTime,
+            workTime: record.workTime,
+            isBiometric: record.isBiometric
         }
     }
 });
@@ -235,7 +238,15 @@ export const WorkforceProvider = ({ children }) => {
 
                 Object.entries(empMap).forEach(([employeeId, data]) => {
                     if (!data?.status) return;
-                    records.push({ date, employeeId, status: data.status, time: data.time || '' });
+                    records.push({ 
+                        date, 
+                        employeeId, 
+                        status: data.status, 
+                        time: data.time || '',
+                        outTime: data.outTime || '',
+                        workTime: data.workTime || '',
+                        isBiometric: data.isBiometric || false
+                    });
                 });
             });
 

@@ -1,9 +1,11 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
+const cron = require('node-cron');
+const { syncBiometricAttendance } = require('./services/biometricSync');
 
 const { initDB } = require('./config/db');
 const errorHandler = require('./middlewares/errorHandler');
@@ -46,6 +48,18 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.use(errorHandler);
+
+// Schedule Biometric Sync every 15 minutes
+cron.schedule('*/15 * * * *', async () => {
+    try {
+        const today = new Date();
+        const dateStr = today.toISOString().split('T')[0];
+        console.log(`[Cron] Running scheduled biometric sync for ${dateStr}...`);
+        await syncBiometricAttendance(dateStr, app.get('io'));
+    } catch (e) {
+        console.error('[Cron] Error during biometric sync:', e);
+    }
+});
 
 server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {

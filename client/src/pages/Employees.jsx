@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useWorkforce, DAYSHORT } from '../context/workforceShared';
+import axios from 'axios';
+import { useWorkforce, DAYSHORT, API_BASE } from '../context/workforceShared';
 import { Edit2, Trash2, PlusCircle, X } from 'lucide-react';
 
 const Employees = () => {
@@ -7,6 +8,9 @@ const Employees = () => {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingEmp, setEditingEmp] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [biometricIds, setBiometricIds] = useState([]);
+    const [fetchingBioIds, setFetchingBioIds] = useState(false);
+    const [showBioDropdown, setShowBioDropdown] = useState(false);
     
     // Form State
     const [formData, setFormData] = useState({
@@ -30,7 +34,11 @@ const Employees = () => {
             checkin: '09:00',
             weekoffs: []
         });
+        setShowBioDropdown(false);
         setIsFormOpen(!isFormOpen);
+        if (!isFormOpen) {
+            document.querySelector('.main')?.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     const handleEdit = (emp) => {
@@ -44,7 +52,9 @@ const Employees = () => {
             checkin: emp.checkin || '09:00',
             weekoffs: emp.weekoffs || []
         });
+        setShowBioDropdown(false);
         setIsFormOpen(true);
+        document.querySelector('.main')?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleDelete = async (id) => {
@@ -70,6 +80,20 @@ const Employees = () => {
         }));
     };
 
+    const fetchBiometricIds = async () => {
+        try {
+            setFetchingBioIds(true);
+            const res = await axios.get(`${API_BASE}/api/employees/biometric-ids`);
+            setBiometricIds(res.data);
+            setShowBioDropdown(true);
+        } catch (e) {
+            console.error('Failed to fetch biometric IDs:', e);
+            alert('Failed to fetch biometric IDs. Check server logs.');
+        } finally {
+            setFetchingBioIds(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!formData.name || !formData.salary) {
             alert("Name and Salary are required!");
@@ -78,9 +102,18 @@ const Employees = () => {
 
         let newEmployees;
         if (editingEmp) {
+            if (formData.id !== editingEmp && employees.some(e => e.id === formData.id)) {
+                alert("Employee ID already exists!");
+                return;
+            }
             newEmployees = employees.map(e => e.id === editingEmp ? { ...formData } : e);
         } else {
-            const newEmp = { ...formData, id: 'E' + Date.now() };
+            const newId = formData.id || 'E' + Date.now();
+            if (employees.some(e => e.id === newId)) {
+                alert("Employee ID already exists!");
+                return;
+            }
+            const newEmp = { ...formData, id: newId };
             newEmployees = [...employees, newEmp];
         }
 
@@ -115,6 +148,41 @@ const Employees = () => {
                         </div>
                         
                         <div className="input-grid form-grid">
+                            <div className="input-group">
+                                <label>Employee ID</label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    {showBioDropdown ? (
+                                        <select 
+                                            value={formData.id} 
+                                            onChange={(e) => {
+                                                const selected = biometricIds.find(b => b.id === e.target.value);
+                                                if (selected && !formData.name) {
+                                                    setFormData({...formData, id: selected.id, name: selected.name});
+                                                } else {
+                                                    setFormData({...formData, id: e.target.value});
+                                                }
+                                            }}
+                                            style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)' }}
+                                        >
+                                            <option value="">Select Biometric ID...</option>
+                                            {biometricIds.map(b => (
+                                                <option key={b.id} value={b.id}>{b.id} - {b.name}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input type="text" value={formData.id} onChange={(e) => setFormData({...formData, id: e.target.value})} placeholder="E12345" style={{ flex: 1 }} />
+                                    )}
+                                    <button 
+                                        type="button" 
+                                        className="secondary-btn small-btn" 
+                                        onClick={fetchBiometricIds} 
+                                        disabled={fetchingBioIds}
+                                        style={{ width: 'auto', padding: '0 10px', height: '38px', margin: 0 }}
+                                    >
+                                        {fetchingBioIds ? 'Wait...' : 'Get Biometric'}
+                                    </button>
+                                </div>
+                            </div>
                             <div className="input-group">
                                 <label>Full Name</label>
                                 <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Jane Doe" />
@@ -164,6 +232,7 @@ const Employees = () => {
                     <table>
                         <thead>
                             <tr>
+                                <th>ID</th>
                                 <th>Name</th>
                                 <th>Role</th>
                                 <th>Dept</th>
@@ -176,6 +245,7 @@ const Employees = () => {
                         <tbody>
                             {employees.map(emp => (
                                 <tr key={emp.id}>
+                                    <td>{emp.id}</td>
                                     <td>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                             <div className="av">{emp.name[0]}</div>

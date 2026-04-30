@@ -3,6 +3,7 @@ const router = express.Router();
 const Attendance = require('../models/Attendance');
 const mockStore = require('../config/mockStore');
 const { shouldUseMockStore, ensurePersistentStore, respondStorageUnavailable } = require('../config/db');
+const { syncBiometricAttendance } = require('../services/biometricSync');
 
 const attendanceMapToRecords = (attendanceMap = {}) => {
     const records = [];
@@ -14,7 +15,10 @@ const attendanceMapToRecords = (attendanceMap = {}) => {
                 date,
                 employeeId,
                 status: data.status,
-                time: data.time || ''
+                time: data.time || '',
+                outTime: data.outTime || '',
+                workTime: data.workTime || '',
+                isBiometric: data.isBiometric || false
             });
         });
     });
@@ -27,7 +31,13 @@ const getAttendanceMap = async () => {
     const data = await Attendance.find().lean();
     return data.reduce((map, record) => {
         if (!map[record.date]) map[record.date] = {};
-        map[record.date][record.employeeId] = { status: record.status, time: record.time };
+        map[record.date][record.employeeId] = { 
+            status: record.status, 
+            time: record.time,
+            outTime: record.outTime,
+            workTime: record.workTime,
+            isBiometric: record.isBiometric
+        };
         return map;
     }, {});
 };
@@ -36,7 +46,9 @@ const syncAttendanceRecords = async (records = []) => {
     if (shouldUseMockStore()) {
         records.forEach(rec => {
             if (!mockStore.mockAttendance[rec.date]) mockStore.mockAttendance[rec.date] = {};
-            mockStore.mockAttendance[rec.date][rec.employeeId] = { status: rec.status, time: rec.time };
+            mockStore.mockAttendance[rec.date][rec.employeeId] = { 
+                status: rec.status, time: rec.time, outTime: rec.outTime, workTime: rec.workTime, isBiometric: rec.isBiometric 
+            };
         });
         return;
     }
@@ -70,7 +82,9 @@ router.post('/', async (req, res, next) => {
         const record = req.body;
         if (shouldUseMockStore()) {
             if (!mockStore.mockAttendance[record.date]) mockStore.mockAttendance[record.date] = {};
-            mockStore.mockAttendance[record.date][record.employeeId] = { status: record.status, time: record.time };
+            mockStore.mockAttendance[record.date][record.employeeId] = { 
+                status: record.status, time: record.time, outTime: record.outTime, workTime: record.workTime, isBiometric: record.isBiometric 
+            };
         } else {
             if (!(await ensurePersistentStore())) {
                 return await respondStorageUnavailable(res);
@@ -100,6 +114,24 @@ router.post('/bulk', async (req, res, next) => {
         await syncAttendanceRecords(records);
         req.app.get('io').emit('state_changed', { type: 'attendance' });
         res.json({ success: true });
+    } catch (e) { next(e); }
+});
+
+router.post('/sync/etimeoffice', async (req, res, next) => {
+    try {
+        const { date, preview } = req.body;
+        if (!date) return res.status(400).json({ error: 'date is required' });
+        
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        const result = await syncBiometricAttendance(date, req.app.get('io'), preview);
+        if (result.success) {
+            res.json({ success: true, count: result.count, records: result.records });
+        } else {
+            res.status(500).json({ error: result.message });
+        }
     } catch (e) { next(e); }
 });
 

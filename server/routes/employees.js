@@ -3,6 +3,8 @@ const router = express.Router();
 const Employee = require('../models/Employee');
 const mockStore = require('../config/mockStore');
 const { shouldUseMockStore, ensurePersistentStore, respondStorageUnavailable } = require('../config/db');
+const axios = require('axios');
+const { getBiometricConfigs, getBiometricCredentials } = require('../services/biometricSync');
 
 const getEmployees = async () => {
     if (shouldUseMockStore()) return mockStore.mockEmployees;
@@ -62,6 +64,47 @@ router.post('/sync', async (req, res, next) => {
         req.app.get('io').emit('state_changed', { type: 'employees' });
         res.json({ success: true });
     } catch (e) { next(e); }
+});
+
+router.get('/biometric-ids', async (req, res, next) => {
+    try {
+        const date = new Date();
+        const apiDateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+        
+        const configs = getBiometricConfigs();
+        let uniqueBiometricIds = [];
+        const seenIds = new Set();
+
+        for (const config of configs) {
+            const credentials = getBiometricCredentials(config);
+            const url = `https://api.etimeoffice.com/api/DownloadInOutPunchData?Empcode=ALL&FromDate=${apiDateStr}&ToDate=${apiDateStr}`;
+            
+            try {
+                const response = await axios.get(url, { headers: { 'Authorization': credentials } });
+                const data = response.data.InOutPunchData || [];
+                
+                data.forEach(record => {
+                    if (!seenIds.has(record.Empcode)) {
+                        seenIds.add(record.Empcode);
+                        uniqueBiometricIds.push({
+                            id: record.Empcode,
+                            name: record.Name,
+                            corpId: config.corpId
+                        });
+                    }
+                });
+            } catch (err) {
+                console.error(`Error fetching biometric IDs from ${config.corpId}:`, err.message);
+            }
+        }
+        
+        // Sort by ID
+        uniqueBiometricIds.sort((a, b) => a.id.localeCompare(b.id));
+
+        res.json(uniqueBiometricIds);
+    } catch (e) {
+        next(e);
+    }
 });
 
 module.exports = { route: router, getEmployees, syncEmployees };

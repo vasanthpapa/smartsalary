@@ -9,6 +9,7 @@ import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Calculator from './pages/Calculator';
 import Login from './pages/Login';
+import TimeofficeReport from './pages/TimeofficeReport';
 
 const App = () => {
     const { loading, token, logout } = useWorkforce();
@@ -52,6 +53,7 @@ const App = () => {
             case 'employees': return <Employees />;
             case 'attendance': return <Attendance />;
             case 'calculator': return <Calculator />;
+            case 'timeoffice': return <TimeofficeReport />;
             default: return <Dashboard />;
         }
     };

@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useWorkforce, MONTHS, DAYSHORT } from '../context/workforceShared';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import { Download } from 'lucide-react';
 
 const IndividualReport = () => {
     const { employees, attendance } = useWorkforce();
@@ -8,6 +11,20 @@ const IndividualReport = () => {
     const [viewYear, setViewYear] = useState(new Date().getFullYear());
     
     const activeEmployeeId = selectedEmp || employees[0]?.id || '';
+    const activeEmployee = employees.find(e => e.id === activeEmployeeId);
+
+    const downloadPDF = async () => {
+        const el = document.getElementById('individual-report-capture');
+        if (!el) return;
+        const canvas = await html2canvas(el, { scale: 2 });
+        const img = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(img, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        const empName = activeEmployee ? activeEmployee.name.replace(/\s+/g, '_') : 'Employee';
+        pdf.save(`Attendance_${empName}_${MONTHS[viewMonth]}_${viewYear}.pdf`);
+    };
 
     const calendarData = useMemo(() => {
         if (!activeEmployeeId) return [];
@@ -43,8 +60,14 @@ const IndividualReport = () => {
 
     return (
         <div className="card">
-            <div className="ch"><span className="ct">Individual Monthly Report</span></div>
-            <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+            <div className="ch" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className="ct">Individual Monthly Report</span>
+                <button className="primary-btn small-btn" style={{ width: 'auto' }} onClick={downloadPDF}>
+                    <Download size={16} style={{ marginRight: '6px' }} />
+                    Download PDF
+                </button>
+            </div>
+            <div id="individual-report-capture" style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', padding: '10px', background: 'var(--card-bg)' }}>
                 <div style={{ flex: 1, minWidth: '250px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div className="input-group">
                         <label>Select Employee</label>

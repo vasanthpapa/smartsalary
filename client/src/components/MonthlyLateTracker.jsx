@@ -26,7 +26,7 @@ const MonthlyLateTracker = () => {
     }, [activeEmployeeId, viewMonth, viewYear, attendance]);
 
     return (
-        <div className="card" style={{ marginTop: '24px' }}>
+        <div className="card" style={{ margin: 0, height: 'fit-content' }}>
             <div className="ch"><span className="ct">Individual Monthly Late Tracker</span></div>
             
             <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
