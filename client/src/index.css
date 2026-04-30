@@ -1278,3 +1278,22 @@ button:active {
     font-weight: 700;
     color: var(--text-primary);
 }
+/* Stronger separators for Bulk Attendance Table */
+.bulk-att-table tr {
+    border-bottom: 3px solid rgba(148, 163, 184, 0.6) !important;
+}
+[data-theme='light'] .bulk-att-table tr {
+    border-bottom: 3px solid rgba(15, 23, 42, 0.4) !important;
+}
+[data-theme='ocean'] .bulk-att-table tr {
+    border-bottom: 3px solid rgba(186, 230, 253, 0.6) !important;
+}
+.bulk-att-table td {
+    padding-top: 22px !important;
+    padding-bottom: 22px !important;
+}
+@media (max-width: 768px) {
+    .bulk-att-table tr {
+        border-bottom: 3px solid var(--primary) !important;
+    }
+}
