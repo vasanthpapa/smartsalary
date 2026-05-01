@@ -50,16 +50,16 @@ if (process.env.NODE_ENV === 'production') {
 app.use(errorHandler);
 
 // Schedule Biometric Sync every 15 minutes
-cron.schedule('*/15 * * * *', async () => {
-    try {
-        const today = new Date();
-        const dateStr = today.toISOString().split('T')[0];
-        console.log(`[Cron] Running scheduled biometric sync for ${dateStr}...`);
-        await syncBiometricAttendance(dateStr, app.get('io'));
-    } catch (e) {
-        console.error('[Cron] Error during biometric sync:', e);
-    }
-});
+// cron.schedule('*/15 * * * *', async () => {
+//     try {
+//         const today = new Date();
+//         const dateStr = today.toISOString().split('T')[0];
+//         console.log(`[Cron] Running scheduled biometric sync for ${dateStr}...`);
+//         await syncBiometricAttendance(dateStr, app.get('io'));
+//     } catch (e) {
+//         console.error('[Cron] Error during biometric sync:', e);
+//     }
+// });
 
 server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {

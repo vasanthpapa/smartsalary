@@ -87,13 +87,25 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
         const recordsToUpdate = [];
 
         for (const emp of employees) {
-            // Find their punch record from the biometric data
-            let record = punchData.find(p => p.Empcode === emp.id);
+            // Find their punch record from the biometric data, prioritizing ones with actual IN time
+            let record = punchData.find(p => p.Empcode === emp.id && p.INTime && p.INTime !== '--:--');
+            
+            // If no valid punch found, fall back to any record (even empty) for this ID
+            if (!record) {
+                record = punchData.find(p => p.Empcode === emp.id);
+            }
             
             // Fallback: Try to match by name if ID doesn't match
             if (!record && emp.name) {
                 const localName = emp.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                record = punchData.find(p => p.Name && p.Name.toLowerCase().replace(/[^a-z0-9]/g, '') === localName);
+                
+                // Prioritize records with actual IN time
+                record = punchData.find(p => p.Name && p.Name.toLowerCase().replace(/[^a-z0-9]/g, '') === localName && p.INTime && p.INTime !== '--:--');
+                
+                if (!record) {
+                    record = punchData.find(p => p.Name && p.Name.toLowerCase().replace(/[^a-z0-9]/g, '') === localName);
+                }
+                
                 if (record) {
                     console.log(`[BiometricSync] Mapped Biometric ID ${record.Empcode} (${record.Name}) to Local Employee ${emp.id} (${emp.name}) via Name Match`);
                 }
