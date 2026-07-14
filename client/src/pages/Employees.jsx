@@ -11,7 +11,7 @@ const Employees = () => {
     const [biometricIds, setBiometricIds] = useState([]);
     const [fetchingBioIds, setFetchingBioIds] = useState(false);
     const [showBioDropdown, setShowBioDropdown] = useState(false);
-    
+
     // Form State
     const [formData, setFormData] = useState({
         id: '',
@@ -76,8 +76,8 @@ const Employees = () => {
     const toggleWeekoff = (dayIdx) => {
         setFormData(prev => ({
             ...prev,
-            weekoffs: prev.weekoffs.includes(dayIdx) 
-                ? prev.weekoffs.filter(d => d !== dayIdx) 
+            weekoffs: prev.weekoffs.includes(dayIdx)
+                ? prev.weekoffs.filter(d => d !== dayIdx)
                 : [...prev.weekoffs, dayIdx]
         }));
     };
@@ -148,20 +148,20 @@ const Employees = () => {
                             <h4 style={{ color: 'var(--text-primary)' }}>{editingEmp ? 'Edit Employee' : 'Add New Employee'}</h4>
                             <button className="btn-icon" onClick={() => setIsFormOpen(false)}><X size={18} /></button>
                         </div>
-                        
+
                         <div className="input-grid form-grid">
                             <div className="input-group">
                                 <label>Employee ID</label>
                                 <div style={{ display: 'flex', gap: '10px' }}>
                                     {showBioDropdown ? (
-                                        <select 
-                                            value={formData.id} 
+                                        <select
+                                            value={formData.id}
                                             onChange={(e) => {
                                                 const selected = biometricIds.find(b => b.id === e.target.value);
                                                 if (selected && !formData.name) {
-                                                    setFormData({...formData, id: selected.id, name: selected.name});
+                                                    setFormData({ ...formData, id: selected.id, name: selected.name });
                                                 } else {
-                                                    setFormData({...formData, id: e.target.value});
+                                                    setFormData({ ...formData, id: e.target.value });
                                                 }
                                             }}
                                             style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-primary)' }}
@@ -172,12 +172,12 @@ const Employees = () => {
                                             ))}
                                         </select>
                                     ) : (
-                                        <input type="text" value={formData.id} onChange={(e) => setFormData({...formData, id: e.target.value})} placeholder="E12345" style={{ flex: 1 }} />
+                                        <input type="text" value={formData.id} onChange={(e) => setFormData({ ...formData, id: e.target.value })} placeholder="E12345" style={{ flex: 1 }} />
                                     )}
-                                    <button 
-                                        type="button" 
-                                        className="secondary-btn small-btn" 
-                                        onClick={fetchBiometricIds} 
+                                    <button
+                                        type="button"
+                                        className="secondary-btn small-btn"
+                                        onClick={fetchBiometricIds}
                                         disabled={fetchingBioIds}
                                         style={{ width: 'auto', padding: '0 10px', height: '38px', margin: 0 }}
                                     >
@@ -187,30 +187,30 @@ const Employees = () => {
                             </div>
                             <div className="input-group">
                                 <label>Full Name</label>
-                                <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Jane Doe" />
+                                <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Jane Doe" />
                             </div>
                             <div className="input-group">
                                 <label>Role</label>
-                                <input type="text" value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})} placeholder="Software Engineer" />
+                                <input type="text" value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} placeholder="Software Engineer" />
                             </div>
                             <div className="input-group">
                                 <label>Department</label>
-                                <input type="text" value={formData.dept} onChange={(e) => setFormData({...formData, dept: e.target.value})} placeholder="Engineering" />
+                                <input type="text" value={formData.dept} onChange={(e) => setFormData({ ...formData, dept: e.target.value })} placeholder="Engineering" />
                             </div>
                             <div className="input-group">
                                 <label>Basic Salary (₹/month)</label>
-                                <input type="number" value={formData.salary} onChange={(e) => setFormData({...formData, salary: e.target.value})} placeholder="30000.50" step="0.01" />
+                                <input type="number" value={formData.salary} onChange={(e) => setFormData({ ...formData, salary: e.target.value })} placeholder="30000.50" step="0.01" />
                             </div>
                             <div className="input-group">
                                 <label>Standard Check-in Time</label>
-                                <input type="time" value={formData.checkin} onChange={(e) => setFormData({...formData, checkin: e.target.value})} />
+                                <input type="time" value={formData.checkin} onChange={(e) => setFormData({ ...formData, checkin: e.target.value })} />
                             </div>
                             <div className="input-group">
                                 <label>Week-off Days</label>
                                 <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
                                     {DAYSHORT.map((day, idx) => (
-                                        <span 
-                                            key={idx} 
+                                        <span
+                                            key={idx}
                                             className={`day-btn ${formData.weekoffs.includes(idx) ? 'selected' : ''}`}
                                             onClick={() => toggleWeekoff(idx)}
                                         >
