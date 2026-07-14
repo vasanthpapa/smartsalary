@@ -209,4 +209,39 @@ router.post('/sync/biometric', async (req, res, next) => {
     }
 });
 
+router.put('/:id', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        let updatedEmployee;
+        if (shouldUseMockStore()) {
+            const idx = mockStore.mockEmployees.findIndex(e => e.id === id);
+            if (idx !== -1) {
+                const updateData = { ...req.body };
+                delete updateData._id;
+                delete updateData.id;
+                mockStore.mockEmployees[idx] = { ...mockStore.mockEmployees[idx], ...updateData };
+                updatedEmployee = mockStore.mockEmployees[idx];
+            }
+        } else {
+            const updateData = { ...req.body };
+            delete updateData._id;
+            delete updateData.id;
+            updatedEmployee = await Employee.findOneAndUpdate({ id }, updateData, { new: true });
+        }
+
+        if (!updatedEmployee) {
+            return res.status(404).json({ error: 'Employee not found.' });
+        }
+
+        req.app.get('io').emit('state_changed', { type: 'employees' });
+        res.json({ success: true, employee: updatedEmployee });
+    } catch (e) {
+        next(e);
+    }
+});
+
 module.exports = { route: router, getEmployees, syncEmployees };
