@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useWorkforce } from '../context/workforceShared';
+import logo from '../assets/logo.png';
 
 const Login = () => {
   const { login } = useWorkforce();
   const [username, setUsername] = useState('smartadmin@org');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState('Smart@6789');
   const [errorText, setErrorText] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -37,17 +38,18 @@ const Login = () => {
       zIndex: 10
     }}>
       <div className="card" style={{ maxWidth: '400px', width: '90%', padding: '2.5rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ color: 'var(--primary)', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>Smart Salary</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Sign in to Admin Dashboard</p>
+        <div style={{ textAlign: 'center', marginBottom: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <img src={logo} alt="Smart Salary Logo" style={{ width: '100px', height: '100px', marginBottom: '1.25rem', borderRadius: '20px' }} />
+          <h1 style={{ color: 'var(--primary)', letterSpacing: '-0.02em', marginBottom: '0.5rem', marginTop: 0 }}>Smart Salary</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>Sign in to Admin Dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="input-group">
             <label>Username</label>
-            <input 
-              type="text" 
-              placeholder="Enter username" 
+            <input
+              type="text"
+              placeholder="Enter username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
@@ -56,9 +58,9 @@ const Login = () => {
 
           <div className="input-group">
             <label>Password</label>
-            <input 
-              type="password" 
-              placeholder="Enter password" 
+            <input
+              type="password"
+              placeholder="Enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, Users, CalendarCheck, Calculator, LogOut } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 const Sidebar = ({ activePage, setPage, onLogout }) => {
   const menuItems = [
@@ -11,9 +12,12 @@ const Sidebar = ({ activePage, setPage, onLogout }) => {
 
   return (
     <aside className="sidebar">
-      <div className="logo">
-        <div className="logo-t">Smart Salary</div>
-        <div className="logo-s">Admin Panel</div>
+      <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 8px' }}>
+        <img src={logo} alt="Logo" style={{ width: '60px', height: '60px', borderRadius: '10px', objectFit: 'contain' }} />
+        <div>
+          <div className="logo-t">Smart Salary</div>
+          <div className="logo-s">Admin Panel</div>
+        </div>
       </div>
       <nav className="nav">
         {menuItems.map(item => (
