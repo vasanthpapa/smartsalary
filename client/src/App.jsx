@@ -27,7 +27,7 @@ const App = () => {
 
     if (loading) {
         return (
-            <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', background: '#0f172a', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
+            <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#0f172a', color: 'white', fontFamily: 'Outfit, sans-serif', zIndex: 9999 }}>
                 <div style={{ textAlign: 'center', animation: 'pulse 2s infinite' }}>
                     <img src={logo} alt="Logo" style={{ width: '100px', height: '100px', marginBottom: '1.25rem', borderRadius: '20px' }} />
                     <h1 style={{ marginBottom: '0.5rem', letterSpacing: '-0.02em', color: '#6366f1' }}>Smart Salary</h1>
