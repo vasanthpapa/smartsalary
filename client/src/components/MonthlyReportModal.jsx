@@ -111,7 +111,7 @@ const MonthlyReportModal = ({ onClose }) => {
                     <div id="report-capture-area" className="report-document">
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '2px solid #c63f3f', paddingBottom: '1rem' }}>
                             <div>
-                                <h1 style={{ color: '#1e293b', margin: 0, fontSize: '1.5rem' }}>WORKFORCE PRO</h1>
+                                <h1 style={{ color: '#1e293b', margin: 0, fontSize: '1.5rem' }}>SMART SALARY</h1>
                                 <p style={{ color: '#64748b', fontSize: '0.8rem' }}>Premium HR Solutions</p>
                             </div>
                             <div style={{ textAlign: 'right' }}>

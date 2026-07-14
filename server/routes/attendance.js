@@ -1,9 +1,50 @@
 const express = require('express');
 const router = express.Router();
 const Attendance = require('../models/Attendance');
+const Employee = require('../models/Employee');
 const mockStore = require('../config/mockStore');
 const { shouldUseMockStore, ensurePersistentStore, respondStorageUnavailable } = require('../config/db');
 const { syncBiometricAttendance } = require('../services/biometricSync');
+
+const recalculateStatus = (status, time, checkinTime) => {
+    if (!time || time === '--:--') return status;
+    
+    // Only recalculate for present, late, or empty status
+    if (status !== 'present' && status !== 'late' && status !== '') return status;
+    
+    const parseMins = (tStr) => {
+        if (!tStr) return 0;
+        const cleaned = tStr.replace(/[^0-9:]/g, '');
+        const parts = cleaned.split(':');
+        if (parts.length === 0) return 0;
+        const h = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        return h * 60 + m;
+    };
+    
+    const addMinutesToTime = (timeStr, minsToAdd) => {
+        if (!timeStr) return null;
+        const [h, m] = timeStr.split(':').map(Number);
+        const date = new Date(2000, 0, 1, h, m);
+        date.setMinutes(date.getMinutes() + minsToAdd);
+        const newH = String(date.getHours()).padStart(2, '0');
+        const newM = String(date.getMinutes()).padStart(2, '0');
+        return `${newH}:${newM}`;
+    };
+
+    const inMins = parseMins(time);
+    const limitTime = addMinutesToTime(checkinTime || '09:00', 10);
+    const limitMins = parseMins(limitTime);
+    
+    // Early AM check-ins (2:15 AM - 2:30 AM) should NOT be counted as late
+    const isEarlyAM = (inMins >= 2 * 60 + 15) && (inMins <= 2 * 60 + 30);
+    
+    if (inMins > limitMins && !isEarlyAM) {
+        return 'late';
+    } else {
+        return 'present';
+    }
+};
 
 const attendanceMapToRecords = (attendanceMap = {}) => {
     const records = [];
@@ -43,6 +84,25 @@ const getAttendanceMap = async () => {
 };
 
 const syncAttendanceRecords = async (records = []) => {
+    if (records.length === 0) return;
+
+    let employees;
+    if (shouldUseMockStore()) {
+        employees = mockStore.mockEmployees;
+    } else {
+        employees = await Employee.find().lean();
+    }
+    
+    const empMap = {};
+    employees.forEach(emp => {
+        empMap[emp.id] = emp;
+    });
+    
+    records.forEach(rec => {
+        const emp = empMap[rec.employeeId];
+        rec.status = recalculateStatus(rec.status, rec.time, emp?.checkin);
+    });
+
     if (shouldUseMockStore()) {
         records.forEach(rec => {
             if (!mockStore.mockAttendance[rec.date]) mockStore.mockAttendance[rec.date] = {};
@@ -52,8 +112,6 @@ const syncAttendanceRecords = async (records = []) => {
         });
         return;
     }
-
-    if (records.length === 0) return;
 
     await Attendance.bulkWrite(
         records.map(rec => ({
@@ -80,6 +138,16 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
     try {
         const record = req.body;
+        
+        let emp;
+        if (shouldUseMockStore()) {
+            emp = mockStore.mockEmployees.find(e => e.id === record.employeeId);
+        } else {
+            emp = await Employee.findOne({ id: record.employeeId }).lean();
+        }
+        
+        record.status = recalculateStatus(record.status, record.time, emp?.checkin);
+
         if (shouldUseMockStore()) {
             if (!mockStore.mockAttendance[record.date]) mockStore.mockAttendance[record.date] = {};
             mockStore.mockAttendance[record.date][record.employeeId] = { 

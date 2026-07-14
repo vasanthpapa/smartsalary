@@ -218,10 +218,10 @@ export const WorkforceProvider = ({ children }) => {
             setAttendance(merged);
         }
 
-        setEmployees(serverEmployees.length > 0 ? serverEmployees : cachedState.employees);
+        setEmployees(serverEmployees);
         setRules(serverRules);
         setSyncError(null);
-    }, [cachedState.employees, markPendingSync]);
+    }, [markPendingSync]);
 
     const syncLocalCacheToServer = useCallback(async () => {
         try {

@@ -9,7 +9,6 @@ import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Calculator from './pages/Calculator';
 import Login from './pages/Login';
-import TimeofficeReport from './pages/TimeofficeReport';
 
 const App = () => {
     const { loading, token, logout } = useWorkforce();
@@ -29,7 +28,7 @@ const App = () => {
         return (
             <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', background: '#0f172a', color: 'white', fontFamily: 'Outfit, sans-serif' }}>
                 <div style={{ textAlign: 'center', animation: 'pulse 2s infinite' }}>
-                    <h1 style={{ marginBottom: '0.5rem', letterSpacing: '-0.02em', color: '#6366f1' }}>WorkForce Pro</h1>
+                    <h1 style={{ marginBottom: '0.5rem', letterSpacing: '-0.02em', color: '#6366f1' }}>Smart Salary</h1>
                     <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Synchronizing with MongoDB Atlas...</p>
                 </div>
             </div>
@@ -53,7 +52,6 @@ const App = () => {
             case 'employees': return <Employees />;
             case 'attendance': return <Attendance />;
             case 'calculator': return <Calculator />;
-            case 'timeoffice': return <TimeofficeReport />;
             default: return <Dashboard />;
         }
     };

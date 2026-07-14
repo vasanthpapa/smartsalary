@@ -1,6 +1,8 @@
 const axios = require('axios');
 const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
+const mockStore = require('../config/mockStore');
+const { shouldUseMockStore } = require('../config/db');
 
 const getBiometricConfigs = () => {
     // Array of machine configs
@@ -32,6 +34,39 @@ const addMinutesToTime = (timeStr, minsToAdd) => {
     const newH = String(date.getHours()).padStart(2, '0');
     const newM = String(date.getMinutes()).padStart(2, '0');
     return `${newH}:${newM}`;
+};
+
+const getWeekRange = (dateStr) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const d = new Date(year, month - 1, day);
+    const dayOfWeek = d.getDay();
+    
+    const sun = new Date(d);
+    sun.setDate(d.getDate() - dayOfWeek);
+    
+    const sat = new Date(sun);
+    sat.setDate(sun.getDate() + 6);
+    
+    const formatDate = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+    
+    return {
+        start: formatDate(sun),
+        end: formatDate(sat)
+    };
+};
+
+const getMonthRange = (dateStr) => {
+    const [year, month] = dateStr.split('-');
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    return {
+        start: `${year}-${month}-01`,
+        end: `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+    };
 };
 
 const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
@@ -71,7 +106,31 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
         }
 
         const punchData = allPunchData;
-        const employees = await Employee.find().lean();
+        let employees;
+        if (shouldUseMockStore()) {
+            employees = mockStore.mockEmployees;
+        } else {
+            employees = await Employee.find().lean();
+        }
+
+        const monthRange = getMonthRange(dateStr);
+        const weekRange = getWeekRange(dateStr);
+        
+        let monthRecords = [];
+        if (shouldUseMockStore()) {
+            Object.entries(mockStore.mockAttendance).forEach(([date, empMap]) => {
+                if (date >= monthRange.start && date <= monthRange.end) {
+                    Object.entries(empMap).forEach(([employeeId, data]) => {
+                        monthRecords.push({ date, employeeId, status: data.status });
+                    });
+                }
+            });
+        } else {
+            monthRecords = await Attendance.find({
+                date: { $gte: monthRange.start, $lte: monthRange.end }
+            }).lean();
+        }
+
         const empMap = {};
         const nameMap = {};
 
@@ -120,21 +179,46 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
             if (inTime) {
                 finalStatus = 'present';
                 
-                // Apply late logic (10 mins grace)
+                // Parse times safely into minutes from midnight to avoid string comparison bugs
+                const parseMins = (tStr) => {
+                    if (!tStr) return 0;
+                    const cleaned = tStr.replace(/[^0-9:]/g, '');
+                    const parts = cleaned.split(':');
+                    if (parts.length === 0) return 0;
+                    const h = parseInt(parts[0], 10) || 0;
+                    const m = parseInt(parts[1], 10) || 0;
+                    return h * 60 + m;
+                };
+
+                const inMins = parseMins(inTime);
                 const checkInTime = emp.checkin || '09:00';
                 const limitTime = addMinutesToTime(checkInTime, 10);
+                const limitMins = parseMins(limitTime);
 
-                if (inTime > limitTime) {
+                // Early AM check-ins (2:15 AM - 2:30 AM) should NOT be counted as late
+                const isEarlyAM = (inMins >= 2 * 60 + 15) && (inMins <= 2 * 60 + 30);
+
+                if (inMins > limitMins && !isEarlyAM) {
                     finalStatus = 'late';
                 }
 
                 // Apply half-day logic
-                if (outTime && outTime < '13:00') {
+                const outMins = parseMins(outTime);
+                const halfDayLimitMins = 13 * 60; // 13:00
+                if (outTime && outMins < halfDayLimitMins) {
                     finalStatus = 'half-day';
                 }
             } else {
-                // If there is NO punch in, mark them as weekoff automatically
-                finalStatus = 'weekoff';
+                // If there is NO punch in, check weekoff limits
+                const empMonthRecords = monthRecords.filter(r => r.employeeId === emp.id && r.date !== dateStr);
+                const weekoffsInMonth = empMonthRecords.filter(r => r.status === 'weekoff').length;
+                const hasWeekoffInWeek = empMonthRecords.some(r => r.status === 'weekoff' && r.date >= weekRange.start && r.date <= weekRange.end);
+
+                if (weekoffsInMonth >= 4 || hasWeekoffInWeek) {
+                    finalStatus = 'absent';
+                } else {
+                    finalStatus = 'weekoff';
+                }
             }
 
             recordsToUpdate.push({
@@ -149,17 +233,30 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
         }
 
         if (recordsToUpdate.length > 0 && !previewOnly) {
-            await Attendance.bulkWrite(
-                recordsToUpdate.map(rec => ({
-                    updateOne: {
-                        filter: { date: rec.date, employeeId: rec.employeeId },
-                        update: { $set: rec },
-                        upsert: true
-                    }
-                })),
-                { ordered: false }
-            );
-            console.log(`[BiometricSync] Synced ${recordsToUpdate.length} records to DB.`);
+            if (shouldUseMockStore()) {
+                recordsToUpdate.forEach(rec => {
+                    if (!mockStore.mockAttendance[rec.date]) mockStore.mockAttendance[rec.date] = {};
+                    mockStore.mockAttendance[rec.date][rec.employeeId] = {
+                        status: rec.status,
+                        time: rec.time,
+                        outTime: rec.outTime,
+                        workTime: rec.workTime,
+                        isBiometric: rec.isBiometric
+                    };
+                });
+            } else {
+                await Attendance.bulkWrite(
+                    recordsToUpdate.map(rec => ({
+                        updateOne: {
+                            filter: { date: rec.date, employeeId: rec.employeeId },
+                            update: { $set: rec },
+                            upsert: true
+                        }
+                    })),
+                    { ordered: false }
+                );
+            }
+            console.log(`[BiometricSync] Synced ${recordsToUpdate.length} records to DB/MockStore.`);
             if (io) {
                 io.emit('state_changed', { type: 'attendance' });
             }

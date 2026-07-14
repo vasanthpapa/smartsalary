@@ -38,7 +38,56 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
             const currentEntries = prev.key === bulkDraftKey ? prev.entries : bulkEntries;
             return {
                 key: bulkDraftKey,
-                entries: currentEntries.map(item => item.id === empId ? { ...item, ...fields } : item)
+                entries: currentEntries.map(item => {
+                    if (item.id === empId) {
+                        const updated = { ...item, ...fields };
+                        
+                        // If check-in time is being changed
+                        if ('time' in fields) {
+                            const val = fields.time;
+                            if (val && val.includes(':')) {
+                                const emp = employees.find(e => e.id === empId);
+                                const checkInTime = emp?.checkin || '09:00';
+                                
+                                // Helper to parse time string "HH:mm" into minutes from midnight
+                                const parseMins = (tStr) => {
+                                    if (!tStr) return 0;
+                                    const parts = tStr.split(':');
+                                    const h = parseInt(parts[0], 10) || 0;
+                                    const m = parseInt(parts[1], 10) || 0;
+                                    return h * 60 + m;
+                                };
+                                
+                                // Helper to add minutes to time string "HH:mm"
+                                const addMinutes = (timeStr, mins) => {
+                                    const [h, m] = timeStr.split(':').map(Number);
+                                    const total = h * 60 + m + mins;
+                                    const newH = String(Math.floor(total / 60) % 24).padStart(2, '0');
+                                    const newM = String(total % 60).padStart(2, '0');
+                                    return `${newH}:${newM}`;
+                                };
+                                
+                                const inMins = parseMins(val);
+                                const limitTime = addMinutes(checkInTime, 10);
+                                const limitMins = parseMins(limitTime);
+                                
+                                // Early AM check-ins (2:15 AM - 2:30 AM) should NOT be counted as late
+                                const isEarlyAM = (inMins >= 2 * 60 + 15) && (inMins <= 2 * 60 + 30);
+                                
+                                // Automatically determine status if it's empty, present, or late
+                                if (!updated.status || updated.status === 'present' || updated.status === 'late') {
+                                    if (inMins > limitMins && !isEarlyAM) {
+                                        updated.status = 'late';
+                                    } else {
+                                        updated.status = 'present';
+                                    }
+                                }
+                            }
+                        }
+                        return updated;
+                    }
+                    return item;
+                })
             };
         });
     };
@@ -65,7 +114,7 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
         setIsSyncing(true);
         try {
             const token = localStorage.getItem('wf_auth_token');
-            const res = await fetch(`${API_BASE || 'http://localhost:3000'}/api/attendance/sync/etimeoffice`, {
+            const res = await fetch(`${API_BASE}/api/attendance/sync/etimeoffice`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json', 
@@ -73,8 +122,17 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                 },
                 body: JSON.stringify({ date: selectedDate, preview: true })
             });
-            const data = await res.json();
-            if (data.success) {
+
+            let data;
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                data = await res.json();
+            } else {
+                const text = await res.text();
+                throw new Error(`Server returned non-JSON response (Status ${res.status}): ${text.substring(0, 150)}`);
+            }
+
+            if (res.ok && data.success) {
                 if (data.records && data.records.length > 0) {
                     setBulkDraft(prev => {
                         const currentEntries = prev.key === bulkDraftKey ? prev.entries : bulkEntries;
@@ -102,10 +160,11 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                     alert('No biometric records found for this date.');
                 }
             } else {
-                alert(`Sync failed: ${data.error}`);
+                alert(`Sync failed (Status ${res.status}): ${data.error || 'Unknown error'}`);
             }
         } catch (e) {
-            alert('Error syncing biometric data');
+            console.error('Error syncing biometric data:', e);
+            alert(`Error syncing biometric data: ${e.message}`);
         }
         setIsSyncing(false);
     };

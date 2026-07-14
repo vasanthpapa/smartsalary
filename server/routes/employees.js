@@ -7,18 +7,23 @@ const axios = require('axios');
 const { getBiometricConfigs, getBiometricCredentials } = require('../services/biometricSync');
 
 const getEmployees = async () => {
-    if (shouldUseMockStore()) return mockStore.mockEmployees;
-
-    const employees = await Employee.find().sort({ name: 1 }).lean();
-    if (employees.length > 0) return employees;
-
-    await Employee.insertMany(mockStore.mockEmployees, { ordered: true });
-    return await Employee.find().sort({ name: 1 }).lean();
+    let employees;
+    if (shouldUseMockStore()) {
+        employees = [...mockStore.mockEmployees];
+    } else {
+        employees = await Employee.find().lean();
+        if (employees.length === 0 && mockStore.mockEmployees.length > 0) {
+            await Employee.insertMany(mockStore.mockEmployees, { ordered: true });
+            employees = await Employee.find().lean();
+        }
+    }
+    employees.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' }));
+    return employees;
 };
 
 const syncEmployees = async (employees = []) => {
     if (shouldUseMockStore()) {
-        mockStore.mockEmployees = employees;
+        mockStore.mockEmployees = [...employees].sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' }));
         return;
     }
 
@@ -102,6 +107,95 @@ router.get('/biometric-ids', async (req, res, next) => {
         uniqueBiometricIds.sort((a, b) => a.id.localeCompare(b.id));
 
         res.json(uniqueBiometricIds);
+    } catch (e) {
+        next(e);
+    }
+});
+
+router.post('/sync/biometric', async (req, res, next) => {
+    try {
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        const date = new Date();
+        const apiDateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+        
+        const configs = getBiometricConfigs();
+        const biometricEmployees = [];
+        const seenIds = new Set();
+
+        for (const config of configs) {
+            const credentials = getBiometricCredentials(config);
+            const url = `https://api.etimeoffice.com/api/DownloadInOutPunchData?Empcode=ALL&FromDate=${apiDateStr}&ToDate=${apiDateStr}`;
+            
+            try {
+                const response = await axios.get(url, { headers: { 'Authorization': credentials } });
+                const data = response.data.InOutPunchData || [];
+                
+                data.forEach(record => {
+                    if (record.Empcode && !seenIds.has(record.Empcode)) {
+                        seenIds.add(record.Empcode);
+                        biometricEmployees.push({
+                            id: record.Empcode,
+                            name: record.Name || `Biometric Employee ${record.Empcode}`,
+                            role: 'Employee',
+                            dept: 'Biometric',
+                            salary: 0,
+                            checkin: '09:00',
+                            weekoffs: []
+                        });
+                    }
+                });
+            } catch (err) {
+                console.error(`Error fetching biometric IDs from ${config.corpId}:`, err.message);
+            }
+        }
+
+        if (biometricEmployees.length === 0) {
+            return res.json({ success: true, count: 0, message: 'No biometric employees found active today.' });
+        }
+
+        // Fetch current employees to avoid overwriting existing metadata (role, dept, salary, checkin, weekoffs)
+        let currentEmployees;
+        if (shouldUseMockStore()) {
+            currentEmployees = mockStore.mockEmployees;
+        } else {
+            currentEmployees = await Employee.find().lean();
+        }
+
+        const currentEmpMap = new Map(currentEmployees.map(e => [e.id, e]));
+        const mergedEmployees = [];
+
+        biometricEmployees.forEach(bioEmp => {
+            const existing = currentEmpMap.get(bioEmp.id);
+            if (existing) {
+                // If it already exists, update name if it matches placeholder or if we want to ensure latest name, 
+                // but keep all existing role, dept, salary, checkin, weekoffs etc.
+                mergedEmployees.push({
+                    ...existing,
+                    name: existing.name || bioEmp.name
+                });
+            } else {
+                mergedEmployees.push(bioEmp);
+            }
+        });
+
+        // Also carry over current employees who are NOT in today's biometric list (so we don't delete them!)
+        currentEmployees.forEach(currEmp => {
+            if (!seenIds.has(currEmp.id)) {
+                mergedEmployees.push(currEmp);
+            }
+        });
+
+        await syncEmployees(mergedEmployees);
+        req.app.get('io').emit('state_changed', { type: 'employees' });
+
+        res.json({ 
+            success: true, 
+            count: biometricEmployees.length,
+            message: `Successfully synced ${biometricEmployees.length} employee(s) from biometric system.` 
+        });
     } catch (e) {
         next(e);
     }

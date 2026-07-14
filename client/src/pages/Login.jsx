@@ -38,7 +38,7 @@ const Login = () => {
     }}>
       <div className="card" style={{ maxWidth: '400px', width: '90%', padding: '2.5rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ color: 'var(--primary)', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>WorkForce Pro</h1>
+          <h1 style={{ color: 'var(--primary)', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>Smart Salary</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Sign in to Admin Dashboard</p>
         </div>
 

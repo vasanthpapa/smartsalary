@@ -6,6 +6,47 @@ import html2canvas from 'html2canvas';
 // ── Only these three employees get the Reviews field ──
 const REVIEW_EMPLOYEES = ['gunasri', 'sireesha', 'vishnukumar'];
 
+const isEarlyCheckin = (timeStr) => {
+    if (!timeStr) return false;
+    
+    let normalized = timeStr.toLowerCase().replace(/\s+/g, '');
+    
+    // If it has PM, it is definitely not early morning AM check-in
+    if (normalized.includes('pm')) return false;
+    
+    // Remove "am"
+    normalized = normalized.replace('am', '');
+    
+    // Replace dots with colons
+    normalized = normalized.replace(/\./g, ':');
+    
+    let h = 0;
+    let m = 0;
+    
+    if (normalized.includes(':')) {
+        const parts = normalized.split(':');
+        h = parseInt(parts[0], 10) || 0;
+        m = parseInt(parts[1], 10) || 0;
+    } else {
+        // If it's a number like 230 or 0230 or 2
+        const num = parseInt(normalized, 10) || 0;
+        if (num >= 100) {
+            h = Math.floor(num / 100);
+            m = num % 100;
+        } else {
+            h = num;
+            m = 0;
+        }
+    }
+    
+    // Pad hours and minutes
+    const padH = String(h).padStart(2, '0');
+    const padM = String(m).padStart(2, '0');
+    const time = `${padH}:${padM}`;
+    
+    return time >= '02:15' && time <= '02:45';
+};
+
 const Calculator = () => {
     const { employees, attendance, rules } = useWorkforce();
 
@@ -41,18 +82,30 @@ const Calculator = () => {
         const emp = employees.find(e => e.id === selEmpId);
         if (emp) setBasic(parseFloat(emp.salary) || 0);
 
-        let worked = 0, late = 0, takenWeekOffs = 0;
+        let worked = 0, late = 0, takenWeekOffs = 0, early = 0;
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const att = attendance[dateStr]?.[selEmpId];
-            if (att?.status === 'present' || att?.status === 'late' || att?.status === 'holiday' || att?.status === 'weekoff') worked++;
+            
+            const isWorkedStatus = att?.status === 'present' || att?.status === 'late' || att?.status === 'holiday' || att?.status === 'weekoff';
+            const isEarly = isEarlyCheckin(att?.time);
+            
+            let dayWorked = 0;
+            if (isWorkedStatus || isEarly) {
+                dayWorked = 1;
+            } else if (att?.status === 'half-day') {
+                dayWorked = 0.5;
+            }
+            worked += dayWorked;
+            
             if (att?.status === 'late') late++;
-            if (att?.status === 'half-day') worked += 0.5;
             if (att?.status === 'weekoff') takenWeekOffs++;
+            if (isEarly) early++;
         }
         setWorkedDays(worked);
         setLateDays(late);
+        setEarlyCount(early);
 
         // Extra working days logic: 4 week-offs allowed. Unused week-offs = extra working days.
         setExtraDays(Math.max(0, 4 - takenWeekOffs));
@@ -111,6 +164,8 @@ const Calculator = () => {
             extraAmt, latePenaltyAmt, reviewAmt,       // ← reviewAmt added
             penalty: safePenalty, expense: safeExpense,
             allowance: safeAllowance,
+            daysInMonth,
+            monthlyBasic: safeBasic,
             net: Number(net.toFixed(2)) || 0
         };
     }, [basic, workedDays, otHours, earlyCount, morningCount, batchCount,
@@ -141,10 +196,10 @@ const Calculator = () => {
 
         wrap.innerHTML = `
             <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #1e293b;">
-                <p style="font-size:20px;font-weight:800;color:#1e293b;margin:0;">
-                    Salary Statement for <span style="color:#1e3a8a;text-decoration:underline;">${empName}</span>
+                <p style="font-size:25px;font-weight:800;color:#1e293b;margin:0;">
+                    Salary Statement for <span style="color:#ef4444;text-decoration:underline;">${empName}</span>
                 </p>
-                <p style="font-size:13px;color:#64748b;margin:4px 0 0 0;">${MONTHS[month]} ${year}</p>
+                <p style="font-size:15px;color:#64748b;margin:4px 0 0 0;">${MONTHS[month]} ${year}</p>
             </div>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
                 <tbody>
@@ -153,6 +208,7 @@ const Calculator = () => {
                             <tr>
                                 <td style="width:50%;vertical-align:top;padding-right:32px;">
                                     <table style="width:100%;border-collapse:collapse;"><tbody>
+                                        ${row(`Monthly Basic( ${results.daysInMonth} Days = ₹${results.perDay.toFixed(2)}/day )`, `₹${results.monthlyBasic.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
                                         ${row(`Basic Salary (${workedDays || 0} Days)`, `₹${results.basicAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)}
                                         ${row(`Early Check-in (${earlyCount || 0})`, `₹${results.earlyAmt.toFixed(2)}`)}
                                         ${row(`Morning Batch (${batchCount || 0})`, `₹${results.batchAmt.toFixed(2)}`)}
@@ -320,7 +376,7 @@ const Calculator = () => {
                                 Salary Statement for{' '}
                                 <span className="name-highlight">{empName}</span>
                             </h3>
-                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                            <p style={{ fontSize: '15px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                                 {MONTHS[month]} {year}
                             </p>
                         </div>
@@ -329,6 +385,7 @@ const Calculator = () => {
                             {/* Left column */}
                             <div>
                                 {[
+                                    { label: `Monthly Basic(${results.daysInMonth} Days = ₹${results.perDay.toFixed(2)}/day )`, value: `₹${results.monthlyBasic.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#000000ff' },
                                     { label: `Basic Salary (${workedDays || 0} Days)`, value: `₹${results.basicAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#111827' },
                                     { label: `Early Check-in (${earlyCount || 0})`, value: `₹${results.earlyAmt.toFixed(2)}`, color: '#111827' },
                                     { label: `Morning Batch (${batchCount || 0})`, value: `₹${results.batchAmt.toFixed(2)}`, color: '#111827' },

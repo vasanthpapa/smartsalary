@@ -611,7 +611,7 @@ button:active {
 }
 
 .name-highlight {
-    color: #2563eb;
+    color: #ef4444;
 }
 
 .result-breakdown {
@@ -720,7 +720,7 @@ button:active {
 }
 
 .result-container.capturing .name-highlight {
-    color: #2563eb !important;
+    color: #ef4444 !important;
     font-weight: 900 !important;
 }
 
@@ -1277,5 +1277,18 @@ button:active {
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text-primary);
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
 }
 
