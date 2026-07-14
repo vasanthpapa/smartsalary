@@ -27,6 +27,14 @@ const syncEmployees = async (employees = []) => {
         return;
     }
 
+    if (employees.length === 0) {
+        const count = await Employee.countDocuments();
+        if (count > 0) {
+            console.warn('[Sync] Received empty employees array from client, but MongoDB has records. Skipping destructive sync.');
+            return;
+        }
+    }
+
     await Employee.deleteMany({ id: { $nin: employees.map(emp => emp.id) } });
 
     if (employees.length === 0) {
@@ -75,7 +83,7 @@ router.get('/biometric-ids', async (req, res, next) => {
     try {
         const date = new Date();
         const apiDateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-        
+
         const configs = getBiometricConfigs();
         let uniqueBiometricIds = [];
         const seenIds = new Set();
@@ -83,11 +91,11 @@ router.get('/biometric-ids', async (req, res, next) => {
         for (const config of configs) {
             const credentials = getBiometricCredentials(config);
             const url = `https://api.etimeoffice.com/api/DownloadInOutPunchData?Empcode=ALL&FromDate=${apiDateStr}&ToDate=${apiDateStr}`;
-            
+
             try {
                 const response = await axios.get(url, { headers: { 'Authorization': credentials } });
                 const data = response.data.InOutPunchData || [];
-                
+
                 data.forEach(record => {
                     if (!seenIds.has(record.Empcode)) {
                         seenIds.add(record.Empcode);
@@ -102,7 +110,7 @@ router.get('/biometric-ids', async (req, res, next) => {
                 console.error(`Error fetching biometric IDs from ${config.corpId}:`, err.message);
             }
         }
-        
+
         // Sort by ID
         uniqueBiometricIds.sort((a, b) => a.id.localeCompare(b.id));
 
@@ -120,7 +128,7 @@ router.post('/sync/biometric', async (req, res, next) => {
 
         const date = new Date();
         const apiDateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-        
+
         const configs = getBiometricConfigs();
         const biometricEmployees = [];
         const seenIds = new Set();
@@ -128,11 +136,11 @@ router.post('/sync/biometric', async (req, res, next) => {
         for (const config of configs) {
             const credentials = getBiometricCredentials(config);
             const url = `https://api.etimeoffice.com/api/DownloadInOutPunchData?Empcode=ALL&FromDate=${apiDateStr}&ToDate=${apiDateStr}`;
-            
+
             try {
                 const response = await axios.get(url, { headers: { 'Authorization': credentials } });
                 const data = response.data.InOutPunchData || [];
-                
+
                 data.forEach(record => {
                     if (record.Empcode && !seenIds.has(record.Empcode)) {
                         seenIds.add(record.Empcode);
@@ -191,10 +199,10 @@ router.post('/sync/biometric', async (req, res, next) => {
         await syncEmployees(mergedEmployees);
         req.app.get('io').emit('state_changed', { type: 'employees' });
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             count: biometricEmployees.length,
-            message: `Successfully synced ${biometricEmployees.length} employee(s) from biometric system.` 
+            message: `Successfully synced ${biometricEmployees.length} employee(s) from biometric system.`
         });
     } catch (e) {
         next(e);

@@ -287,9 +287,11 @@ export const WorkforceProvider = ({ children }) => {
                 return;
             }
 
-            if (hasPendingSync) {
+            if (hasPendingSync && Array.isArray(employees) && employees.length > 0) {
                 await syncLocalCacheToServer();
                 return;
+            } else if (hasPendingSync) {
+                clearPendingSync();
             }
 
             applyServerSnapshot(snapshot);
@@ -303,7 +305,7 @@ export const WorkforceProvider = ({ children }) => {
         } finally {
             setLoading(false);
         }
-    }, [applyServerSnapshot, captureSyncError, fetchLegacySnapshot, hasPendingSync, markPendingSync, syncLocalCacheToServer]);
+    }, [applyServerSnapshot, captureSyncError, fetchLegacySnapshot, hasPendingSync, markPendingSync, syncLocalCacheToServer, clearPendingSync, employees]);
 
     useEffect(() => {
         if (!token) {
