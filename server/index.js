@@ -57,17 +57,9 @@ if (process.env.NODE_ENV === 'production') {
 
 app.use(errorHandler);
 
-// Schedule Biometric Sync every 15 minutes
-// cron.schedule('*/15 * * * *', async () => {
-//     try {
-//         const today = new Date();
-//         const dateStr = today.toISOString().split('T')[0];
-//         console.log(`[Cron] Running scheduled biometric sync for ${dateStr}...`);
-//         await syncBiometricAttendance(dateStr, app.get('io'));
-//     } catch (e) {
-//         console.error('[Cron] Error during biometric sync:', e);
-//     }
-// });
+// Automatic biometric sync is TURNED OFF.
+// Biometric data will ONLY sync when the user manually clicks the "Sync eTimeOffice" button in the UI.
+// (15-minute automatic cron sync disabled)
 
 server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
