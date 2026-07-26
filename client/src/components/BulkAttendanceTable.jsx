@@ -71,15 +71,17 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                                 const limitTime = addMinutes(checkInTime, 10);
                                 const limitMins = parseMins(limitTime);
                                 
-                                // Early AM check-ins (2:15 AM - 2:30 AM) should NOT be counted as late
-                                const isEarlyAM = (inMins >= 2 * 60 + 15) && (inMins <= 2 * 60 + 30);
-                                
+                                const isEmpSaved = selectedDateAttendance[empId] !== undefined;
+
                                 // Automatically determine status if it's empty, present, or late
-                                if (!updated.status || updated.status === 'present' || updated.status === 'late') {
-                                    if (inMins > limitMins && !isEarlyAM) {
-                                        updated.status = 'late';
-                                    } else {
-                                        updated.status = 'present';
+                                // Do not automatically change status if the employee's attendance is already saved (edit mode)
+                                if (!isEmpSaved) {
+                                    if (!updated.status || updated.status === 'present' || updated.status === 'late') {
+                                        if (inMins > limitMins) {
+                                            updated.status = 'late';
+                                        } else {
+                                            updated.status = 'present';
+                                        }
                                     }
                                 }
                             }
@@ -105,6 +107,7 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                 isBiometric: item.isBiometric
             }));
         await saveBulkAttendance(records);
+        setBulkDraft({ key: '', entries: [] }); // Clear draft so UI reflects saved DB state
         hasUserEditedRef.current = false;
         setIsManuallyUnlocked(false);
         alert("Attendance saved!");
