@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useWorkforce } from '../context/workforceShared';
 import { FileText, Lock, Unlock } from 'lucide-react';
-import axios from 'axios';
 import { API_BASE } from '../context/workforceShared';
 
 const BulkAttendanceTable = ({ onOpenReport }) => {

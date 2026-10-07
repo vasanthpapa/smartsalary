@@ -1,10 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const Employee = require('../models/Employee');
+const EmployeeAsset = require('../models/EmployeeAsset');
 const mockStore = require('../config/mockStore');
 const { shouldUseMockStore, ensurePersistentStore, respondStorageUnavailable } = require('../config/db');
 const axios = require('axios');
 const { getBiometricConfigs, getBiometricCredentials } = require('../services/biometricSync');
+
+const ASSET_TYPES = new Set(['photo', 'aadhaar', 'bank', 'voterId', 'drivingLicence']);
+const DOCUMENT_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+const PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_ASSET_SIZE = 5 * 1024 * 1024;
+
+const assetKey = (employeeId, type) => `${employeeId}:${type}`;
+
+const sanitizeFileName = (fileName = 'document') => String(fileName)
+    .replace(/[\r\n"\\/]/g, '_')
+    .slice(0, 180) || 'document';
+
+const serializeAsset = (asset) => ({
+    type: asset.type,
+    fileName: asset.fileName,
+    mimeType: asset.mimeType,
+    size: asset.size,
+    updatedAt: asset.updatedAt || null
+});
 
 const getEmployees = async () => {
     let employees;
@@ -24,6 +44,12 @@ const getEmployees = async () => {
 const syncEmployees = async (employees = []) => {
     if (shouldUseMockStore()) {
         mockStore.mockEmployees = [...employees].sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' }));
+        const activeIds = new Set(employees.map(emp => String(emp.id)));
+        for (const [key, asset] of mockStore.mockEmployeeAssets.entries()) {
+            if (!activeIds.has(String(asset.employeeId))) {
+                mockStore.mockEmployeeAssets.delete(key);
+            }
+        }
         return;
     }
 
@@ -35,20 +61,27 @@ const syncEmployees = async (employees = []) => {
         }
     }
 
-    await Employee.deleteMany({ id: { $nin: employees.map(emp => emp.id) } });
+    const employeeIds = employees.map(emp => emp.id);
+    await Employee.deleteMany({ id: { $nin: employeeIds } });
+    await EmployeeAsset.deleteMany({ employeeId: { $nin: employeeIds } });
 
     if (employees.length === 0) {
         return;
     }
 
     await Employee.bulkWrite(
-        employees.map(emp => ({
-            updateOne: {
-                filter: { id: emp.id },
-                update: { $set: emp },
-                upsert: true
-            }
-        })),
+        employees.map(emp => {
+            const employeeData = { ...emp };
+            delete employeeData._id;
+            delete employeeData.__v;
+            return {
+                updateOne: {
+                    filter: { id: emp.id },
+                    update: { $set: employeeData },
+                    upsert: true
+                }
+            };
+        }),
         { ordered: false }
     );
 };
@@ -118,6 +151,103 @@ router.get('/biometric-ids', async (req, res, next) => {
     } catch (e) {
         next(e);
     }
+});
+
+router.get('/:id/assets', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        let assets;
+        if (shouldUseMockStore()) {
+            assets = Array.from(mockStore.mockEmployeeAssets.values())
+                .filter(asset => asset.employeeId === id)
+                .map(serializeAsset);
+        } else {
+            assets = await EmployeeAsset.find({ employeeId: id })
+                .select('type fileName mimeType size updatedAt')
+                .lean();
+        }
+
+        res.json(assets);
+    } catch (e) { next(e); }
+});
+
+router.get('/:id/assets/:type', async (req, res, next) => {
+    try {
+        const { id, type } = req.params;
+        if (!ASSET_TYPES.has(type)) {
+            return res.status(400).json({ error: 'Unsupported employee document type.' });
+        }
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        const asset = shouldUseMockStore()
+            ? mockStore.mockEmployeeAssets.get(assetKey(id, type))
+            : await EmployeeAsset.findOne({ employeeId: id, type }).select('+data').lean();
+
+        if (!asset) {
+            return res.status(404).json({ error: 'Employee document not found.' });
+        }
+
+        res.setHeader('Content-Type', asset.mimeType);
+        res.setHeader('Content-Length', asset.size);
+        res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFileName(asset.fileName)}"`);
+        res.send(asset.data);
+    } catch (e) { next(e); }
+});
+
+router.put('/:id/assets/:type', async (req, res, next) => {
+    try {
+        const { id, type } = req.params;
+        const { fileName, mimeType, data } = req.body;
+        if (!ASSET_TYPES.has(type)) {
+            return res.status(400).json({ error: 'Unsupported employee document type.' });
+        }
+        if (!fileName || !mimeType || !data) {
+            return res.status(400).json({ error: 'File name, type and data are required.' });
+        }
+
+        const allowedMimeTypes = type === 'photo' ? PHOTO_MIME_TYPES : DOCUMENT_MIME_TYPES;
+        if (!allowedMimeTypes.has(mimeType)) {
+            return res.status(400).json({ error: type === 'photo' ? 'Photo must be a JPG, PNG or WEBP image.' : 'Document must be a PDF, JPG, PNG or WEBP file.' });
+        }
+
+        const fileBuffer = Buffer.from(data, 'base64');
+        if (!fileBuffer.length || fileBuffer.length > MAX_ASSET_SIZE) {
+            return res.status(400).json({ error: 'File must be smaller than 5 MB.' });
+        }
+        if (!shouldUseMockStore() && !(await ensurePersistentStore())) {
+            return await respondStorageUnavailable(res);
+        }
+
+        const assetData = {
+            employeeId: id,
+            type,
+            fileName: sanitizeFileName(fileName),
+            mimeType,
+            size: fileBuffer.length,
+            data: fileBuffer,
+            updatedAt: new Date()
+        };
+
+        let savedAsset;
+        if (shouldUseMockStore()) {
+            mockStore.mockEmployeeAssets.set(assetKey(id, type), assetData);
+            savedAsset = assetData;
+        } else {
+            savedAsset = await EmployeeAsset.findOneAndUpdate(
+                { employeeId: id, type },
+                { $set: assetData },
+                { new: true, upsert: true, runValidators: true }
+            ).lean();
+        }
+
+        res.json({ success: true, asset: serializeAsset(savedAsset) });
+    } catch (e) { next(e); }
 });
 
 router.post('/sync/biometric', async (req, res, next) => {
