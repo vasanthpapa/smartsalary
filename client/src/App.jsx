@@ -50,11 +50,11 @@ const App = () => {
 
     const renderPage = () => {
         switch(page) {
-            case 'dashboard': return <Dashboard />;
+            case 'dashboard': return <Dashboard onViewAttendance={() => setPage('attendance')} />;
             case 'employees': return <Employees />;
             case 'attendance': return <Attendance />;
             case 'calculator': return <Calculator />;
-            default: return <Dashboard />;
+            default: return <Dashboard onViewAttendance={() => setPage('attendance')} />;
         }
     };
 
