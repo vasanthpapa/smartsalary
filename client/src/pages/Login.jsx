@@ -4,8 +4,8 @@ import logo from '../assets/logo.png';
 
 const Login = () => {
   const { login } = useWorkforce();
-  const [username, setUsername] = useState('smartadmin@org');
-  const [password, setPassword] = useState('Smart@6789');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
   const [loading, setLoading] = useState(false);
 
