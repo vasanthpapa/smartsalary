@@ -26,6 +26,21 @@ const serializeAsset = (asset) => ({
     updatedAt: asset.updatedAt || null
 });
 
+const getAssetBuffer = (data) => {
+    if (Buffer.isBuffer(data)) return data;
+
+    if (data && typeof data.value === 'function') {
+        const value = data.value(true);
+        if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+            return Buffer.from(value);
+        }
+    }
+
+    if (data instanceof Uint8Array) return Buffer.from(data);
+    if (data?.buffer instanceof Uint8Array) return Buffer.from(data.buffer);
+    return null;
+};
+
 const getEmployees = async () => {
     let employees;
     if (shouldUseMockStore()) {
@@ -193,10 +208,17 @@ router.get('/:id/assets/:type', async (req, res, next) => {
             return res.status(404).json({ error: 'Employee document not found.' });
         }
 
+        const fileBuffer = getAssetBuffer(asset.data);
+        if (!fileBuffer?.length) {
+            const error = new Error('The stored employee document has no file data.');
+            error.statusCode = 500;
+            throw error;
+        }
+
         res.setHeader('Content-Type', asset.mimeType);
-        res.setHeader('Content-Length', asset.size);
+        res.setHeader('Content-Length', fileBuffer.length);
         res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFileName(asset.fileName)}"`);
-        res.send(asset.data);
+        res.end(fileBuffer);
     } catch (e) { next(e); }
 });
 

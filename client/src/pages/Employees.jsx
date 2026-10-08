@@ -452,7 +452,9 @@ const selectEmployee = (employeeId) => {
             document.body.appendChild(link);
             link.click();
             link.remove();
-            URL.revokeObjectURL(downloadUrl);
+            // Some browsers start reading the blob after the click handler returns.
+            // Keep it alive briefly so cross-device/mobile downloads do not fail.
+            window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 60_000);
         } catch (error) {
             console.error('Employee document download failed:', error);
             setAssetError('The document could not be downloaded. Please try again.');
@@ -938,7 +940,6 @@ const handleRemoveAsset = async (type) => {
                     </div>
                     <h2>No employee selected</h2>
                     <p>Choose an employee from the list above to open their record, or create a new employee profile.</p>
-                    <button type="button" className="ed-secondary-action" onClick={startAddEmployee}><Plus size={17} /> {employees.length ? 'Add employee' : 'Add first employee'}</button>
                 </div>
             )}
         </div>
