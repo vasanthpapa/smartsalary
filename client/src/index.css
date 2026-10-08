@@ -1858,8 +1858,9 @@ button:active {
 }
 
 .ed-document-title-row strong {
-    color: var(--ed-ink);
-    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
 }
 
 .ed-document-title-row span {
@@ -1870,15 +1871,25 @@ button:active {
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
-
-.ed-document-title-row span.required {
-    color: #b42318;
-    background: #fff0ee;
+.ed-document-title-row strong em {
+    color: #dc2626;
+    font-style: normal;
+    font-weight: 800;
+    margin-left: 2px;
 }
 
-.ed-document-title-row span.optional {
-    color: #526071;
-    background: #f1f3f6;
+.employee-document .ed-field-label {
+    display: block;
+    margin-bottom: 4px;
+    color: #374151;
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.employee-document .ed-required-mark {
+    color: #dc2626;
+    font-weight: 800;
+    margin-left: 2px;
 }
 
 .ed-document-copy p {
@@ -2077,4 +2088,272 @@ button:active {
         max-width: none;
     }
 }
+.employee-document input.ed-field-has-error,
+.employee-document select.ed-field-has-error,
+.employee-document textarea.ed-field-has-error {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12) !important;
+}
 
+.employee-document input.ed-field-has-error:focus,
+.employee-document select.ed-field-has-error:focus,
+.employee-document textarea.ed-field-has-error:focus {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16) !important;
+}
+
+.employee-document .ed-field-error {
+    color: #dc2626 !important;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+.employee-document .ed-remove-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid #fecaca;
+    border-radius: 7px;
+    background: #fff;
+    color: #dc2626;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.employee-document .ed-remove-action:hover {
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+.employee-document .ed-remove-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ed-search-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 280px;
+}
+
+.ed-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.ed-search-box input {
+    width: 100%;
+    padding-right: 42px;
+}
+
+.ed-clear-search {
+    position: absolute;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.ed-clear-search:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.ed-search-results {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--card-bg, #fff);
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.10);
+}
+
+.ed-search-result {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border: 0;
+    border-bottom: 1px solid #f0f0f0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ed-search-result:last-child {
+    border-bottom: 0;
+}
+
+.ed-search-result:hover,
+.ed-search-result.selected {
+    background: #f5f7fa;
+}
+
+.ed-search-result-avatar {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #eef1f5;
+}
+
+.ed-search-result-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ed-search-result-info strong {
+    font-size: 14px;
+}
+
+.ed-search-result-info span {
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ed-search-no-results {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 18px;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.ed-employee-select-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.ed-employee-select-row .ed-employee-select {
+    flex: 1;
+}
+
+.ed-clear-selection {
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 12px;
+    border: 1px solid #d9dde3;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ed-clear-selection:hover:not(:disabled) {
+    background: #f5f7fa;
+}
+
+.ed-clear-selection:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+/* Employee search dropdown - keep above empty state */
+.ed-selector-controls {
+    position: relative;
+    z-index: 50;
+}
+
+.ed-search-wrapper {
+    position: relative;
+    z-index: 60;
+}
+
+.ed-search-results {
+    position: absolute;
+    z-index: 9999;
+    isolation: isolate;
+}
+
+.employee-empty-state {
+    position: relative;
+    z-index: 1;
+}
+
+/* Better search dropdown appearance */
+.ed-search-results {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+    overflow-y: auto;
+}
+
+.ed-search-result {
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ed-search-result:hover,
+.ed-search-result.selected {
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.ed-search-result-avatar {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary);
+}
+
+.ed-search-result-info strong {
+    color: var(--text-primary);
+}
+
+.ed-search-result-info span {
+    color: var(--text-secondary);
+}
+
+.ed-search-no-results {
+    color: var(--text-secondary);
+    background: var(--sidebar-bg);
+}
+.employee-selector-card {
+    position: relative;
+    z-index: 100;
+    overflow: visible !important;
+}
+/* --- Fix 1: Stop the Clear button from stretching --- */
+.ed-clear-selection {
+    width: auto;          /* override global button width */
+    flex: 0 0 auto;       /* prevent flex growth */
+    padding: 0 14px;      /* keep it compact */
+    white-space: nowrap;
+}
+
+/* --- Fix 2: Give the employee select enough room --- */
+.ed-selector-controls {
+    grid-template-columns: minmax(280px, 1.5fr) minmax(320px, 1fr) auto;
+    align-items: end;     /* keeps labels and buttons aligned */
+}
+
+/* --- Optional: allow grid items to shrink gracefully --- */
+.ed-search-wrapper,
+.ed-employee-select-row,
+.ed-result-count {
+    min-width: 0;
+}
