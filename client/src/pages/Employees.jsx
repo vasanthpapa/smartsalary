@@ -72,11 +72,22 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
     reader.readAsDataURL(file);
 });
 
-const FormField = ({ label, required = false, className = '', children }) => (
-    <label className={`ed-form-field ${className}`}>
-        <span>{label}{required && <em> *</em>}</span>
-        {children}
-    </label>
+const FormField = ({ label, required, error, children }) => (
+    <div className="space-y-1">
+        <label className="ed-field-label">
+            {label} {required && <span className="ed-required-mark">*</span>}
+        </label>
+
+        {React.cloneElement(children, {
+            className: `${children.props.className || ''} ${error ? 'ed-field-has-error' : ''}`
+        })}
+
+        {error && (
+            <p className="ed-field-error">
+                {error}
+            </p>
+        )}
+    </div>
 );
 
 const DetailItem = ({ label, value, wide = false }) => (
@@ -86,20 +97,36 @@ const DetailItem = ({ label, value, wide = false }) => (
     </div>
 );
 
-const DocumentCard = ({ item, asset, pendingFile, inputId, busy, onPick, onDownload }) => {
+const DocumentCard = ({
+    item,
+    asset,
+    pendingFile,
+    inputId,
+    busy,
+    error,
+    onPick,
+    onDownload,
+    onRemove,
+    allowUpload = false,
+    showRequiredMark = false
+}) => {
     const file = pendingFile || asset;
     const hasFile = Boolean(file);
 
     return (
-        <div className={`ed-document-card ${hasFile ? 'is-ready' : 'is-missing'}`}>
+        <div
+            tabIndex={error ? 0 : -1}
+            data-field={item.type}
+            className={`ed-document-card ${hasFile ? 'is-ready' : 'is-missing'} ${error ? 'has-error' : ''}`}
+        >
             <div className="ed-document-icon"><FileText size={22} /></div>
             <div className="ed-document-copy">
                 <div className="ed-document-title-row">
-                    <strong>{item.label}</strong>
-                    <span className={item.required ? 'required' : 'optional'}>
-                        {item.required ? 'Mandatory' : 'Optional'}
-                    </span>
-                </div>
+    <strong>
+        {item.label}
+        {showRequiredMark && item.required && <em>*</em>}
+    </strong>
+</div>
                 {hasFile ? (
                     <p title={file.name || file.fileName}>
                         {file.name || file.fileName} <span>· {formatFileSize(file.size)}</span>
@@ -107,6 +134,7 @@ const DocumentCard = ({ item, asset, pendingFile, inputId, busy, onPick, onDownl
                 ) : (
                     <p>{item.required ? 'Required document is missing' : 'No document added'}</p>
                 )}
+                {error && <small className="ed-field-error">{error}</small>}
             </div>
             <div className="ed-document-actions">
                 {asset && !pendingFile && (
@@ -114,21 +142,40 @@ const DocumentCard = ({ item, asset, pendingFile, inputId, busy, onPick, onDownl
                         <Download size={17} />
                     </button>
                 )}
-                <input
-                    id={inputId}
-                    className="ed-hidden-input"
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
-                    onChange={(event) => {
-                        const fileValue = event.target.files?.[0];
-                        if (fileValue) onPick(item.type, fileValue);
-                        event.target.value = '';
-                    }}
-                    disabled={busy}
-                />
-                <label className="ed-upload-action" htmlFor={inputId} aria-disabled={busy}>
-                    <Upload size={16} /> {busy ? 'Uploading…' : hasFile ? 'Change' : 'Upload'}
-                </label>
+                {allowUpload && (
+    <>
+        <input
+            id={inputId}
+            className="ed-hidden-input"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+            onChange={(event) => {
+                const fileValue = event.target.files?.[0];
+                if (fileValue) onPick(item.type, fileValue);
+                event.target.value = '';
+            }}
+            disabled={busy}
+        />
+
+        <label className="ed-upload-action" htmlFor={inputId} aria-disabled={busy}>
+            <Upload size={16} />
+            {busy ? 'Uploading…' : hasFile ? 'Change' : 'Upload'}
+        </label>
+
+        {hasFile && (
+            <button
+                type="button"
+                className="ed-remove-action"
+                onClick={() => onRemove(item.type)}
+                disabled={busy}
+                title={`Remove ${item.label}`}
+            >
+                <Trash2 size={16} />
+                Remove
+            </button>
+        )}
+    </>
+)}
             </div>
         </div>
     );
@@ -154,6 +201,8 @@ const Employees = () => {
     const [photoUrl, setPhotoUrl] = useState('');
     const [pendingAssets, setPendingAssets] = useState({});
     const [pendingPhotoUrl, setPendingPhotoUrl] = useState('');
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [removeDocument, setRemoveDocument] = useState(null);
 
     const selectedEmployee = employees.find(employee => employee.id === selectedEmployeeId);
 
@@ -180,7 +229,7 @@ const Employees = () => {
 
         if (!selectedEmployeeId) {
             setAssetLoading(false);
-            return () => {};
+            return () => { };
         }
 
         const loadAssets = async () => {
@@ -224,25 +273,58 @@ const Employees = () => {
     const updateForm = (field, value) => {
         setFormData(previous => ({ ...previous, [field]: value }));
         setFormError('');
+
+        if (fieldErrors[field]) {
+            setFieldErrors(previous => {
+                const next = { ...previous };
+                delete next[field];
+                return next;
+            });
+        }
     };
 
     const resetPendingAssets = () => {
         setPendingAssets({});
         setPendingPhotoUrl('');
     };
+const clearEmployeeSearch = () => {
+    setSearchTerm('');
+};
 
-    const startAddEmployee = () => {
-        setEditingEmployeeId(null);
-        setSelectedEmployeeId('');
-        setFormData({ ...EMPTY_FORM, weekoffs: [] });
-        setFormError('');
-        setAssetError('');
-        setAssetMeta({});
-        setPhotoUrl('');
-        setShowBioDropdown(false);
-        resetPendingAssets();
-        setIsFormOpen(true);
-    };
+const clearEmployeeSelection = () => {
+    setSelectedEmployeeId('');
+    setSearchTerm('');
+    setAssetError('');
+    setIsFormOpen(false);
+    setEditingEmployeeId(null);
+};
+const selectEmployee = (employeeId) => {
+    setSelectedEmployeeId(employeeId);
+    setSearchTerm('');
+    setAssetError('');
+    setIsFormOpen(false);
+    setEditingEmployeeId(null);
+};
+
+   const startAddEmployee = () => {
+    const generatedId = `E${Date.now()}`;
+
+    setEditingEmployeeId(null);
+    setSelectedEmployeeId('');
+    setFormData({
+        ...EMPTY_FORM,
+        id: generatedId,
+        weekoffs: []
+    });
+    setFormError('');
+    setAssetError('');
+    setFieldErrors({});
+    setAssetMeta({});
+    setPhotoUrl('');
+    setShowBioDropdown(false);
+    resetPendingAssets();
+    setIsFormOpen(true);
+};
 
     const startEditEmployee = () => {
         if (!selectedEmployee) return;
@@ -257,9 +339,11 @@ const Employees = () => {
         });
         setFormError('');
         setAssetError('');
+        setFieldErrors({});
         setShowBioDropdown(false);
         resetPendingAssets();
         setIsFormOpen(true);
+
     };
 
     const closeForm = () => {
@@ -268,6 +352,7 @@ const Employees = () => {
         setFormError('');
         setShowBioDropdown(false);
         resetPendingAssets();
+        setFieldErrors({});
     };
 
     const toggleWeekoff = (dayIndex) => {
@@ -343,6 +428,13 @@ const Employees = () => {
         }
 
         setPendingAssets(previous => ({ ...previous, [type]: file }));
+
+        setFieldErrors(previous => {
+            const next = { ...previous };
+            delete next[type];
+            return next;
+        });
+
         if (type === 'photo') setPendingPhotoUrl(URL.createObjectURL(file));
     };
 
@@ -366,29 +458,102 @@ const Employees = () => {
             setAssetError('The document could not be downloaded. Please try again.');
         }
     };
+const handleRemoveAsset = async (type) => {
+    if (!window.confirm(`Remove ${DOCUMENT_TYPES.find(item => item.type === type)?.label}?`)) return;
+
+    if (pendingAssets[type]) {
+        setPendingAssets(previous => {
+            const next = { ...previous };
+            delete next[type];
+            return next;
+        });
+
+        setFieldErrors(previous => {
+            const next = { ...previous };
+            delete next[type];
+            return next;
+        });
+
+        return;
+    }
+
+    if (!selectedEmployeeId || !assetMeta[type]) return;
+
+    try {
+        setAssetError('');
+        setUploadingType(type);
+
+        await axios.delete(
+            `${API_BASE}/api/employees/${encodeURIComponent(selectedEmployeeId)}/assets/${type}`
+        );
+
+        setAssetVersion(version => version + 1);
+    } catch (error) {
+        console.error('Employee document removal failed:', error);
+        setAssetError(error?.response?.data?.error || 'The document could not be removed.');
+    } finally {
+        setUploadingType('');
+    }
+};
+    const focusField = (field) => {
+        requestAnimationFrame(() => {
+            document.querySelector(`[data-field="${field}"]`)?.focus();
+        });
+    };
 
     const handleSave = async () => {
         setAssetError('');
-        if (!formData.name.trim() || formData.salary === '' || formData.salary === null) {
-            setFormError('Full name and basic salary are required.');
+        const errors = {};
+
+        if (!formData.name.trim()) {
+            errors.name = 'Full name is required.';
+        }
+
+        if (formData.salary === '' || formData.salary === null) {
+            errors.salary = 'Basic salary is required.';
+        }
+
+        if (!editingEmployeeId) {
+            DOCUMENT_TYPES.forEach(documentType => {
+                if (
+                    documentType.required &&
+                    !pendingAssets[documentType.type] &&
+                    !assetMeta[documentType.type]
+                ) {
+                    errors[documentType.type] = `${documentType.label} is required.`;
+                }
+            });
+        }
+
+        if (Object.keys(errors).length) {
+            setFieldErrors(errors);
+
+            if (errors.name) {
+                focusField('name');
+            } else if (errors.salary) {
+                focusField('salary');
+            } else {
+                const missingDocument = DOCUMENT_TYPES.find(
+                    documentType => errors[documentType.type]
+                );
+
+                if (missingDocument) {
+                    focusField(missingDocument.type);
+                }
+            }
+
             return;
         }
 
-        const employeeId = editingEmployeeId || formData.id.trim() || `E${Date.now()}`;
+        setFieldErrors({});
+
+        const employeeId = editingEmployeeId || formData.id.trim();
         if (!editingEmployeeId && employees.some(employee => employee.id === employeeId)) {
             setFormError('That employee ID already exists.');
             return;
         }
 
-        if (!editingEmployeeId) {
-            const missingDocuments = DOCUMENT_TYPES
-                .filter(documentType => documentType.required && !pendingAssets[documentType.type])
-                .map(documentType => documentType.label);
-            if (missingDocuments.length) {
-                setFormError(`Upload the mandatory documents: ${missingDocuments.join(', ')}.`);
-                return;
-            }
-        }
+
 
         const employeeRecord = {
             ...formData,
@@ -450,22 +615,30 @@ const Employees = () => {
         return <div className={`${className} ed-photo-placeholder`}><UserRound size={38} /></div>;
     };
 
-    const renderDocumentCards = (mode) => (
-        <div className="ed-documents-grid">
-            {DOCUMENT_TYPES.map(item => (
-                <DocumentCard
-                    key={item.type}
-                    item={item}
-                    asset={mode === 'new' ? null : assetMeta[item.type]}
-                    pendingFile={pendingAssets[item.type]}
-                    inputId={`employee-${mode}-${item.type}`}
-                    busy={uploadingType === item.type || saving}
-                    onPick={mode === 'new' ? handleFormAssetPick : handleDirectAssetUpload}
-                    onDownload={handleDownload}
-                />
-            ))}
-        </div>
-    );
+    const renderDocumentCards = (mode) => {
+        const allowUpload = mode === 'new' || mode === 'edit';
+
+        return (
+            <div className="ed-documents-grid">
+                {DOCUMENT_TYPES.map(item => (
+                    <DocumentCard
+                        key={item.type}
+                        item={item}
+                        asset={mode === 'new' ? null : assetMeta[item.type]}
+                        pendingFile={pendingAssets[item.type]}
+                        inputId={`employee-${mode}-${item.type}`}
+                        busy={uploadingType === item.type || saving}
+                        error={fieldErrors[item.type]}
+                        allowUpload={allowUpload}
+                        showRequiredMark={mode === 'new' || mode === 'edit'}
+                        onPick={mode === 'new' ? handleFormAssetPick : handleDirectAssetUpload}
+                        onDownload={handleDownload}
+                        onRemove={handleRemoveAsset}
+                    />
+                ))}
+            </div>
+        );
+    };
 
     return (
         <div className="pg active employee-details-page">
@@ -481,34 +654,104 @@ const Employees = () => {
                     </button>
                 </div>
                 <div className="ed-selector-controls">
-                    <label className="ed-search-box">
-                        <Search size={18} />
-                        <input
-                            type="search"
-                            value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
-                            placeholder="Search by name, ID, department or role"
-                        />
-                    </label>
-                    <label className="ed-employee-select">
-                        <span>Employee list</span>
-                        <select
-                            value={filteredEmployees.some(employee => employee.id === selectedEmployeeId) ? selectedEmployeeId : ''}
-                            onChange={(event) => {
-                                setSelectedEmployeeId(event.target.value);
-                                setAssetError('');
-                                setIsFormOpen(false);
-                                setEditingEmployeeId(null);
-                            }}
+    <div className="ed-search-wrapper">
+        <label className="ed-search-box">
+            <Search size={18} />
+            <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by name, ID, department or role"
+            />
+
+            {searchTerm && (
+                <button
+                    type="button"
+                    className="ed-clear-search"
+                    onClick={clearEmployeeSearch}
+                    title="Clear search"
+                >
+                    <X size={16} />
+                </button>
+            )}
+        </label>
+
+        {searchTerm.trim() && (
+            <div className="ed-search-results">
+                {filteredEmployees.length ? (
+                    filteredEmployees.map(employee => (
+                        <button
+                            key={employee.id}
+                            type="button"
+                            className={`ed-search-result ${
+                                selectedEmployeeId === employee.id ? 'selected' : ''
+                            }`}
+                            onClick={() => selectEmployee(employee.id)}
                         >
-                            <option value="">Select an employee</option>
-                            {filteredEmployees.map(employee => (
-                                <option key={employee.id} value={employee.id}>{employee.name} · {employee.id}</option>
-                            ))}
-                        </select>
-                    </label>
-                    <span className="ed-result-count">{filteredEmployees.length} of {employees.length} employees</span>
-                </div>
+                            <div className="ed-search-result-avatar">
+                                <UserRound size={17} />
+                            </div>
+
+                            <div className="ed-search-result-info">
+                                <strong>{employee.name}</strong>
+                                <span>
+                                    {employee.id}
+                                    {employee.dept ? ` · ${employee.dept}` : ''}
+                                    {employee.role ? ` · ${employee.role}` : ''}
+                                </span>
+                            </div>
+                        </button>
+                    ))
+                ) : (
+                    <div className="ed-search-no-results">
+                        <Search size={17} />
+                        <span>No employees found</span>
+                    </div>
+                )}
+            </div>
+        )}
+    </div>
+
+    <div className="ed-employee-select-row">
+        <label className="ed-employee-select">
+            <span>Employee list</span>
+
+            <select
+                value={
+                    employees.some(employee => employee.id === selectedEmployeeId)
+                        ? selectedEmployeeId
+                        : ''
+                }
+                onChange={(event) => {
+                    selectEmployee(event.target.value);
+                }}
+            >
+                <option value="">Select an employee</option>
+
+                {employees.map(employee => (
+                    <option key={employee.id} value={employee.id}>
+                        {employee.name} · {employee.id}
+                    </option>
+                ))}
+            </select>
+        </label>
+
+        <button
+            type="button"
+            className="ed-clear-selection"
+            onClick={clearEmployeeSelection}
+            disabled={!selectedEmployeeId && !searchTerm}
+            title="Clear employee selection"
+        >
+            <X size={16} />
+            Clear
+        </button>
+    </div>
+
+    <span className="ed-result-count">
+        {filteredEmployees.length} of {employees.length} employees
+    </span>
+</div>
             </div>
 
             {isFormOpen ? (
@@ -547,11 +790,11 @@ const Employees = () => {
                                 <small>JPG, PNG or WEBP · Max 5 MB</small>
                             </div>
                             <div className="ed-form-grid">
-                                <FormField label="Full name" required><input value={formData.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Employee full name" /></FormField>
-                                <FormField label="Phone number"><input type="tel" value={formData.phone} onChange={(event) => updateForm('phone', event.target.value)} placeholder="+91 98765 43210" /></FormField>
-                                <FormField label="Email address"><input type="email" value={formData.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="name@company.com" /></FormField>
-                                <FormField label="Date of birth"><input type="date" value={formData.dob} onChange={(event) => updateForm('dob', event.target.value)} /></FormField>
-                                <FormField label="Residential address" className="wide"><textarea value={formData.address} onChange={(event) => updateForm('address', event.target.value)} placeholder="Full residential address" rows="3" /></FormField>
+                                <FormField label="Full name" required error={fieldErrors.name} field="name"><input data-field="name" value={formData.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Employee full name" /></FormField>
+                                <FormField label="Phone number" error={fieldErrors.phone} field="phone"><input data-field="phone" type="tel" value={formData.phone} onChange={(event) => updateForm('phone', event.target.value)} placeholder="+91 98765 43210" /></FormField>
+                                <FormField label="Email address" error={fieldErrors.email} field="email"><input data-field="email" type="email" value={formData.email} onChange={(event) => updateForm('email', event.target.value)} placeholder="name@company.com" /></FormField>
+                                <FormField label="Date of birth" error={fieldErrors.dob} field="dob"><input data-field="dob" type="date" value={formData.dob} onChange={(event) => updateForm('dob', event.target.value)} /></FormField>
+                                <FormField label="Residential address" className="wide" error={fieldErrors.address} field="address"><textarea data-field="address" value={formData.address} onChange={(event) => updateForm('address', event.target.value)} placeholder="Full residential address" rows="3" /></FormField>
                             </div>
                         </div>
                     </section>
@@ -580,7 +823,7 @@ const Employees = () => {
                                 </select>
                             </FormField>
                             <FormField label="Joining date"><input type="date" value={formData.joinDate} onChange={(event) => updateForm('joinDate', event.target.value)} /></FormField>
-                            <FormField label="Basic salary (₹/month)" required><input type="number" min="0" step="0.01" value={formData.salary} onChange={(event) => updateForm('salary', event.target.value)} placeholder="30000" /></FormField>
+                            <FormField label="Basic salary (₹/month)" required error={fieldErrors.salary}><input data-field="salary" type="number" min="0" step="0.01" value={formData.salary} onChange={(event) => updateForm('salary', event.target.value)} placeholder="30000" /></FormField>
                             <FormField label="Standard check-in"><input type="time" value={formData.checkin} onChange={(event) => updateForm('checkin', event.target.value)} /></FormField>
                             <div className="ed-form-field ed-weekoff-field">
                                 <span>Week-off days</span>
@@ -628,21 +871,10 @@ const Employees = () => {
                     <header className="ed-profile-header">
                         <div className="ed-profile-identity">
                             <div className="ed-photo-viewer">
-                                {photoUrl ? <img src={photoUrl} alt={`${selectedEmployee.name} profile`} /> : <div className="ed-photo-placeholder"><UserRound size={42} /></div>}
-                                <input
-                                    id="employee-view-photo"
-                                    className="ed-hidden-input"
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-                                    onChange={(event) => {
-                                        const file = event.target.files?.[0];
-                                        if (file) handleDirectAssetUpload('photo', file);
-                                        event.target.value = '';
-                                    }}
-                                />
-                                <label htmlFor="employee-view-photo" className="ed-photo-overlay" title={photoUrl ? 'Change photo' : 'Add photo'}>
-                                    <Camera size={17} />
-                                </label>
+                                {photoUrl
+                                    ? <img src={photoUrl} alt={`${selectedEmployee.name} profile`} />
+                                    : <div className="ed-photo-placeholder"><UserRound size={42} /></div>
+                                }
                             </div>
                             <div>
                                 <span className="ed-document-kicker">Employee record · {selectedEmployee.id}</span>
@@ -694,7 +926,7 @@ const Employees = () => {
                     </section>
 
                     <section className="ed-document-section ed-upload-section">
-                        <div className="ed-section-title"><FileText size={19} /><div><h3>Documents</h3><p>Download an uploaded file or replace it with a newer copy.</p></div></div>
+                        <div className="ed-section-title"><FileText size={19} /><div><h3>Documents</h3><p>Download uploaded documents for this employee.</p></div></div>
                         {assetLoading ? <div className="ed-document-loading">Loading documents…</div> : renderDocumentCards('view')}
                     </section>
                 </article>
