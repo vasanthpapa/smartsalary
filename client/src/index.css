@@ -217,6 +217,11 @@ h1, h2, h3, h4, .net-value, .sv {
     width: 100%;
 }
 
+.content.content-dashboard {
+    max-width: 1760px;
+    padding: 34px clamp(24px, 2vw, 40px);
+}
+
 .pg {
     display: none;
     animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -433,6 +438,7 @@ tr:hover td {
     
     .main { display: flex; flex-direction: column; height: auto; min-height: 100vh; overflow-y: visible; flex: 1; }
     .content { padding: 15px; } /* reduce padding on mobile */
+    .content.content-dashboard { padding: 18px 16px; }
     .topbar { padding: 15px; position: sticky; top: 0; }
 }
 

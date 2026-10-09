@@ -68,7 +68,7 @@ const App = () => {
                 <Sidebar activePage={page} setPage={setPage} onLogout={handleLogout} />
                 <main className="main">
                     <Topbar activePage={page} onLogout={handleLogout} />
-                    <div className="content">
+                    <div className={`content ${page === 'dashboard' ? 'content-dashboard' : ''}`}>
                         {renderPage()}
                     </div>
                 </main>
