@@ -10,6 +10,7 @@ import Employees from './pages/Employees';
 import Attendance from './pages/Attendance';
 import Calculator from './pages/Calculator';
 import Login from './pages/Login';
+import COCOPreview from './pages/COCOAttendancePreview';
 
 const App = () => {
     const { loading, token, logout } = useWorkforce();
@@ -54,6 +55,7 @@ const App = () => {
             case 'employees': return <Employees />;
             case 'attendance': return <Attendance />;
             case 'calculator': return <Calculator />;
+            case 'coco-preview': return <COCOPreview />;
             default: return <Dashboard onViewAttendance={() => setPage('attendance')} />;
         }
     };
