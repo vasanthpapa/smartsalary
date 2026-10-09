@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { LayoutDashboard, Users, CalendarCheck, Calculator, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, Calculator, Database, LogOut, Menu, X } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 const menuItems = [
@@ -7,6 +7,7 @@ const menuItems = [
   { id: 'employees', label: 'Employees', Icon: Users },
   { id: 'attendance', label: 'Attendance', Icon: CalendarCheck },
   { id: 'calculator', label: 'Salary Calculator', Icon: Calculator },
+  { id: 'coco-preview', label: 'COCO Preview', Icon: Database },
 ];
 
 // Styles are included so this component does not require a separate CSS file.
