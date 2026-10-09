@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
-const COCO_API = `${import.meta.env.VITE_COCO_API_URL?.replace(/\/+$/, '')}/api/attendance/preview`;
+
+const COCO_API = 'https://coco-eight-vert.vercel.app/api/attendance/preview';
 
 const displayValue = value => {
     if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
