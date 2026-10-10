@@ -2,7 +2,9 @@ const express = require('express');
 const axios = require('axios');
 
 const router = express.Router();
-const COCO_PREVIEW_URL = process.env.COCO_ATTENDANCE_PREVIEW_URL ||
+
+const COCO_PREVIEW_URL =
+    process.env.COCO_ATTENDANCE_PREVIEW_URL ||
     'https://coco-eight-vert.vercel.app/api/attendance/preview';
 
 router.get('/preview', async (req, res) => {
@@ -12,7 +14,11 @@ router.get('/preview', async (req, res) => {
             timeout: 15000
         });
 
-        if (!upstream.data || typeof upstream.data !== 'object' || !Array.isArray(upstream.data.records)) {
+        if (
+            !upstream.data ||
+            typeof upstream.data !== 'object' ||
+            !Array.isArray(upstream.data.records)
+        ) {
             return res.status(502).json({
                 success: false,
                 error: 'COCO attendance service returned an unexpected response.'
@@ -22,7 +28,11 @@ router.get('/preview', async (req, res) => {
         return res.status(200).json(upstream.data);
     } catch (error) {
         const timedOut = error.code === 'ECONNABORTED';
-        console.error('COCO attendance preview request failed:', error.message);
+
+        console.error(
+            'COCO attendance preview request failed:',
+            error.message
+        );
 
         return res.status(timedOut ? 504 : 502).json({
             success: false,
