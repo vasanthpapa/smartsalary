@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { API_BASE } from '../context/workforceShared';
 
-
-// const COCO_API = `${(import.meta.env.VITE_COCO_API_URL || 'https://coco-eight-vert.vercel.app').replace(/\/+$/, '')}/api/attendance/preview`;
-const COCO_API ="https://coco-eight-vert.vercel.app/api/attendance/preview";
-// const COCO_API = `${(import.meta.env.VITE_COCO_API_URL || 'http://localhost:3001').replace(/\/+$/, '')}/api/attendance/preview`;
+const COCO_API = `${API_BASE}/api/coco-attendance/preview`;
 const displayValue = value => {
     if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
     if (value === null || value === undefined || value === '') return '—';
@@ -34,35 +32,25 @@ const COCOAttendancePreview = () => {
         setError('');
 
         try {
-           
-const response = await fetch(COCO_API, {
-    method: 'GET',
-    cache: 'no-store',
-    headers: {
-        Accept: 'application/json'
-    }
-});
+            const token = localStorage.getItem('wf_auth_token');
+            const response = await fetch(COCO_API, {
+                method: 'GET',
+                cache: 'no-store',
+                headers: {
+                    Accept: 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                }
+            });
 
-const contentType = response.headers.get('content-type') || '';
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(`SmartSalary API returned an unexpected response (HTTP ${response.status}).`);
+            }
 
-if (!contentType.includes('application/json')) {
-    throw new Error(
-        `COCO API returned non-JSON response (HTTP ${response.status}). Check the deployed API route and Vercel logs.`
-    );
-}
-
-const data = await response.json();
-
-if (!response.ok || !data.success) {
-    throw new Error(
-        data.error || `COCO API request failed (HTTP ${response.status})`
-    );
-}
-
-setRecords(Array.isArray(data.records) ? data.records : []);
-setUpdatedAt(data.updatedAt || new Date().toISOString());
-setConnected(true);
-
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || `Attendance request failed (HTTP ${response.status}).`);
+            }
 
             setRecords(Array.isArray(data.records) ? data.records : []);
             setUpdatedAt(data.updatedAt || new Date().toISOString());
@@ -71,7 +59,7 @@ setConnected(true);
             setConnected(false);
             setError(
                 err.message?.includes('Failed to fetch')
-                    ? `Cannot reach COCO API: ${COCO_API}. Check network access and CORS settings.`
+                    ? 'Cannot reach the SmartSalary API. Check the server connection and try again.'
                     : err.message || 'Unable to fetch attendance.'
             );
         } finally {

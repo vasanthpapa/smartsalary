@@ -23,6 +23,7 @@ const employeesRouter = require('./routes/employees').route;
 const attendanceRouter = require('./routes/attendance').route;
 const rulesRouter = require('./routes/rules').route;
 const systemRouter = require('./routes/system').route;
+const cocoAttendanceRouter = require('./routes/cocoAttendance').route;
 
 const app = express();
 const server = http.createServer(app);
@@ -45,6 +46,7 @@ app.use('/api/auth', authRouter);
 app.use('/api', verifyToken);
 
 // App routes
+app.use('/api/coco-attendance', cocoAttendanceRouter);
 app.use('/', systemRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/attendance', attendanceRouter);
