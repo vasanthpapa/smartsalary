@@ -27,18 +27,29 @@ router.get('/preview', async (req, res) => {
 
         return res.status(200).json(upstream.data);
     } catch (error) {
+        if (error.response?.status === 404) {
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                updatedAt: null,
+                records: []
+            });
+        }
+
         const timedOut = error.code === 'ECONNABORTED';
 
         console.error(
             'COCO attendance preview request failed:',
-            error.message
+            error.response?.status || error.code || error.message
         );
 
         return res.status(timedOut ? 504 : 502).json({
             success: false,
             error: timedOut
                 ? 'COCO attendance service timed out. Please try again.'
-                : 'COCO attendance service is temporarily unavailable.'
+                : error.response?.status
+                    ? `COCO attendance service returned HTTP ${error.response.status}.`
+                    : 'COCO attendance service is temporarily unavailable.'
         });
     }
 });

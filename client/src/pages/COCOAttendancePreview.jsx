@@ -53,7 +53,7 @@ const COCOAttendancePreview = () => {
             }
 
             setRecords(Array.isArray(data.records) ? data.records : []);
-            setUpdatedAt(data.updatedAt || new Date().toISOString());
+            setUpdatedAt(data.updatedAt || '');
             setConnected(true);
         } catch (err) {
             setConnected(false);
