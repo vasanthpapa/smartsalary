@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 
-const COCO_API = 'https://coco-eight-vert.vercel.app';
+const COCO_API = `${(import.meta.env.VITE_COCO_API_URL || 'https://coco-eight-vert.vercel.app').replace(/\/+$/, '')}/api/attendance/preview`;
 
+// const COCO_API = `${(import.meta.env.VITE_COCO_API_URL || 'http://localhost:3001').replace(/\/+$/, '')}/api/attendance/preview`;
 const displayValue = value => {
     if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
     if (value === null || value === undefined || value === '') return '—';
