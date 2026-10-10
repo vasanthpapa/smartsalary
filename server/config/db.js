@@ -12,7 +12,8 @@ const looksLikePlaceholder = (value = '') => {
     );
 };
 
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
+const MONGO_DB = process.env.MONGODB_DB;
 const HAS_MONGO_URI = Boolean(MONGO_URI) && !looksLikePlaceholder(MONGO_URI);
 const shouldUseMockStore = () => !HAS_MONGO_URI;
 
@@ -24,7 +25,10 @@ const connectToMongo = async () => {
     if (mongoose.connection.readyState === 1) return true;
     if (mongoConnectPromise) return mongoConnectPromise;
 
-    mongoConnectPromise = mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
+    mongoConnectPromise = mongoose.connect(MONGO_URI, {
+        serverSelectionTimeoutMS: 5000,
+        ...(MONGO_DB ? { dbName: MONGO_DB } : {})
+    })
         .then(() => {
             lastMongoError = null;
             console.log('Connected to MongoDB Atlas');

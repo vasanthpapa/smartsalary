@@ -3,10 +3,71 @@ import { useWorkforce } from '../context/workforceShared';
 import { FileText, Lock, Unlock } from 'lucide-react';
 import { API_BASE } from '../context/workforceShared';
 
+const normalizeDate = (value) => {
+    const date = String(value || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+
+    const match = date.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})$/);
+    if (!match) return '';
+
+    const [, first, second, rawYear] = match;
+    const year = rawYear.length === 2
+        ? Number(rawYear) <= 49 ? `20${rawYear}` : `19${rawYear}`
+        : rawYear;
+
+    // COCO slash dates use month/day/year, e.g. 9/22/26.
+    // Preserve the existing day/month inference for dot and hyphen dates.
+    const isSlashDate = date.includes('/');
+    const month = isSlashDate
+        ? Number(first)
+        : Number(first) > 12 ? Number(second) : Number(first);
+    const day = isSlashDate
+        ? Number(second)
+        : Number(first) > 12 ? Number(first) : Number(second);
+
+    const parsed = new Date(Number(year), month - 1, day);
+    if (
+        month < 1 || month > 12 ||
+        day < 1 ||
+        parsed.getFullYear() !== Number(year) ||
+        parsed.getMonth() !== month - 1 ||
+        parsed.getDate() !== day
+    ) return '';
+
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+const normalizeTime = (value) => {
+    const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i);
+    if (!match) return '';
+
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const period = match[3]?.toLowerCase();
+    if (minutes > 59 || hours > (period ? 12 : 23) || (period && hours === 0)) return '';
+    if (period === 'pm' && hours < 12) hours += 12;
+    if (period === 'am' && hours === 12) hours = 0;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
+const getCocoTime = (record, pluralKey, singularKey) => {
+    const values = Array.isArray(record[pluralKey]) ? record[pluralKey] : [record[singularKey]];
+    return values.map(normalizeTime).find(Boolean) || '';
+};
+
+const isCocoPresent = (record) => {
+    const status = String(record.status || record.attendanceStatus || '').trim().toLowerCase();
+    const weekOff = String(record.weekOff || record.weekoff || record.week_off || '').trim().toLowerCase();
+    const hasPresentStatus = !status || ['present', 'p', 'working', 'worked'].includes(status);
+    const isWeekOff = ['yes', 'true', '1', 'week off', 'weekoff', 'weekly off', 'off'].includes(weekOff);
+    return hasPresentStatus && !isWeekOff;
+};
+
 const BulkAttendanceTable = ({ onOpenReport }) => {
     const { employees, attendance, saveBulkAttendance } = useWorkforce();
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isCocoSyncing, setIsCocoSyncing] = useState(false);
 
     const selectedDateAttendance = useMemo(() => attendance[selectedDate] || {}, [attendance, selectedDate]);
     const hasSavedAttendance = Object.keys(selectedDateAttendance).length > 0;
@@ -171,6 +232,91 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
         setIsSyncing(false);
     };
 
+    const handleCocoSync = async () => {
+        setIsCocoSyncing(true);
+        try {
+            const token = localStorage.getItem('wf_auth_token');
+            const res = await fetch(`${API_BASE}/api/coco-attendance/preview`, {
+                method: 'GET',
+                cache: 'no-store',
+                headers: {
+                    Accept: 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                }
+            });
+
+            const contentType = res.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(`Server returned non-JSON response (Status ${res.status}).`);
+            }
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || `COCO sync failed (Status ${res.status}).`);
+            }
+
+            const cocoRecords = Array.isArray(data.records) ? data.records : [];
+
+            console.log('SmartSalary employee IDs:', employees.map(e => ({
+    id: e.id,
+    empId: e.empId,
+    name: e.name
+})));
+console.log('COCO records:', cocoRecords.map(r => ({
+    empId: r.empId,
+    name: r.name,
+    date: r.date,
+    checkIns: r.checkIns,
+    checkOuts: r.checkOuts,
+    weekOff: r.weekOff,
+    status: r.status
+})));
+
+            const cocoByEmployeeId = new Map(
+                cocoRecords
+                    .filter(record => normalizeDate(record.date) === selectedDate)
+                    .map(record => [String(record.empId || '').trim().toLowerCase(), record])
+                    .filter(([employeeId]) => employeeId)
+            );
+
+            const updates = tempBulk.filter(employee => employee.status?.toLowerCase() === 'weekoff')
+                .map(employee => {
+                    const record = cocoByEmployeeId.get(String(employee.id).trim().toLowerCase());
+                    const time = record && isCocoPresent(record) ? getCocoTime(record, 'checkIns', 'checkIn') : '';
+                    const outTime = record && isCocoPresent(record) ? getCocoTime(record, 'checkOuts', 'checkOut') : '';
+                    return { id: employee.id, time, outTime };
+                })
+                .filter(update => update.time && update.outTime);
+
+            if (!updates.length) {
+                alert('No valid COCO Present records matched Week Off attendance for this date. Existing attendance was not changed.');
+                return;
+            }
+
+            const updatesByEmployeeId = new Map(updates.map(update => [update.id, update]));
+            setBulkDraft(prev => {
+                const currentEntries = prev.key === bulkDraftKey ? prev.entries : bulkEntries;
+                return {
+                    key: bulkDraftKey,
+                    entries: currentEntries.map(employee => {
+                        const update = updatesByEmployeeId.get(employee.id);
+                        return update
+                            ? { ...employee, status: 'present', time: update.time, outTime: update.outTime }
+                            : employee;
+                    })
+                };
+            });
+            hasUserEditedRef.current = true;
+            setIsManuallyUnlocked(true);
+            alert(`Updated ${updates.length} Week Off record${updates.length === 1 ? '' : 's'} from COCO. Review the table and click 'Save All Attendance' to update the database.`);
+        } catch (e) {
+            console.error('Error syncing COCO attendance data:', e);
+            alert(`Error syncing COCO attendance data: ${e.message}`);
+        } finally {
+            setIsCocoSyncing(false);
+        }
+    };
+
     return (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
             <div className="ch" style={{ flexWrap: 'wrap', gap: '15px' }}>
@@ -199,8 +345,8 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                     <button className="secondary-btn small-btn" onClick={handleBiometricSync} disabled={isSyncing} style={{ borderColor: '#3b82f6', color: '#3b82f6', padding: '0.25rem 0.75rem' }}>
                         {isSyncing ? 'Syncing...' : 'Sync Biometric'}
                     </button>
-                    <button className="secondary-btn small-btn" style={{ borderColor: '#8b5cf6', color: '#8b5cf6', padding: '0.25rem 0.75rem' }}>
-                        Sync COCO
+                    <button className="secondary-btn small-btn" onClick={handleCocoSync} disabled={isCocoSyncing} style={{ borderColor: '#8b5cf6', color: '#8b5cf6', padding: '0.25rem 0.75rem' }}>
+                        {isCocoSyncing ? 'Syncing COCO...' : 'Sync COCO'}
                     </button>
                     <button className="secondary-btn small-btn" onClick={onOpenReport} style={{ borderColor: 'var(--primary)', color: 'var(--primary)', padding: '0.25rem 0.75rem' }}>
                         <FileText size={16} /> Monthly Report
