@@ -16,13 +16,14 @@ const Login = () => {
     try {
       await login(username, password);
     } catch (err) {
-      setErrorText(err.response?.data?.error || 'Login failed. Try again.');
+      const message = err.response?.data?.error || 'Login failed. Try again.';
+      setErrorText(message);
       setLoading(false);
       const toast = document.getElementById('toast');
       if (toast) {
-        toast.textContent = errorText || 'Invalid credentials. Please try again.';
+        toast.textContent = message;
         toast.className = 'toast show error';
-        setTimeout(() => toast.className = 'toast', 3000);
+        setTimeout(() => { toast.className = 'toast'; }, 3000);
       }
     }
   };
