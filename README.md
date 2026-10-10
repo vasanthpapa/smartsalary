@@ -27,12 +27,17 @@ npm run dev
 
 ## Environment Variables
 
-Root `.env`:
+Root `.env` (do not commit this file):
 
 ```env
 MONGO_URI=your_mongodb_connection_string
-PORT=3001
+PORT=3000
+ADMIN_USERNAME=your_admin_username
+ADMIN_PASSWORD=use_a_unique_strong_password
+JWT_SECRET=generate_a_random_secret_at_least_32_characters_long
 ```
+
+The backend refuses login if `ADMIN_USERNAME`, `ADMIN_PASSWORD`, or a `JWT_SECRET` of at least 32 characters is missing. Never use real credentials in source control.
 
 Frontend env example:
 
@@ -57,9 +62,14 @@ Manual values if needed:
 - Start Command: `npm start`
 - Health Check Path: `/health`
 
-Required environment variable:
+Required environment variables:
 
 - `MONGO_URI`
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `JWT_SECRET` (at least 32 characters)
+
+Set the authentication variables as secret environment values in Render. Do not put their real values in `render.yaml` or commit them to Git.
 
 Live save checklist:
 
