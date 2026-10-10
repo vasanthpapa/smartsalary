@@ -34,16 +34,35 @@ const COCOAttendancePreview = () => {
         setError('');
 
         try {
-            const response = await fetch(COCO_API, {
-                method: 'GET',
-                cache: 'no-store'
-            });
+           
+const response = await fetch(COCO_API, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+        Accept: 'application/json'
+    }
+});
 
-            const data = await response.json();
+const contentType = response.headers.get('content-type') || '';
 
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || `Request failed (${response.status})`);
-            }
+if (!contentType.includes('application/json')) {
+    throw new Error(
+        `COCO API returned non-JSON response (HTTP ${response.status}). Check the deployed API route and Vercel logs.`
+    );
+}
+
+const data = await response.json();
+
+if (!response.ok || !data.success) {
+    throw new Error(
+        data.error || `COCO API request failed (HTTP ${response.status})`
+    );
+}
+
+setRecords(Array.isArray(data.records) ? data.records : []);
+setUpdatedAt(data.updatedAt || new Date().toISOString());
+setConnected(true);
+
 
             setRecords(Array.isArray(data.records) ? data.records : []);
             setUpdatedAt(data.updatedAt || new Date().toISOString());
