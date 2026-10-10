@@ -86,7 +86,8 @@ const mergeAttendanceRecord = (prevAttendance, record) => ({
             time: record.time,
             outTime: record.outTime,
             workTime: record.workTime,
-            isBiometric: record.isBiometric
+            isBiometric: record.isBiometric,
+            isCoco: record.isCoco
         }
     }
 });
@@ -245,7 +246,8 @@ export const WorkforceProvider = ({ children }) => {
                         time: data.time || '',
                         outTime: data.outTime || '',
                         workTime: data.workTime || '',
-                        isBiometric: data.isBiometric || false
+                        isBiometric: data.isBiometric || false,
+                        isCoco: data.isCoco || false
                     });
                 });
             });

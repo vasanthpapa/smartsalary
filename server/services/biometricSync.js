@@ -228,7 +228,8 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
                 time: inTime,
                 outTime: outTime,
                 workTime: workTime,
-                isBiometric: true
+                isBiometric: true,
+                isCoco: false
             });
         }
 
@@ -241,7 +242,8 @@ const syncBiometricAttendance = async (dateStr, io, previewOnly = false) => {
                         time: rec.time,
                         outTime: rec.outTime,
                         workTime: rec.workTime,
-                        isBiometric: rec.isBiometric
+                        isBiometric: rec.isBiometric,
+                        isCoco: rec.isCoco
                     };
                 });
             } else {

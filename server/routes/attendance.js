@@ -21,7 +21,8 @@ const attendanceMapToRecords = (attendanceMap = {}) => {
                 time: data.time || '',
                 outTime: data.outTime || '',
                 workTime: data.workTime || '',
-                isBiometric: data.isBiometric || false
+                isBiometric: data.isBiometric || false,
+                isCoco: data.isCoco || false
             });
         });
     });
@@ -39,7 +40,8 @@ const getAttendanceMap = async () => {
             time: record.time,
             outTime: record.outTime,
             workTime: record.workTime,
-            isBiometric: record.isBiometric
+            isBiometric: record.isBiometric,
+            isCoco: record.isCoco
         };
         return map;
     }, {});
@@ -54,7 +56,7 @@ const syncAttendanceRecords = async (records = []) => {
         records.forEach(rec => {
             if (!mockStore.mockAttendance[rec.date]) mockStore.mockAttendance[rec.date] = {};
             mockStore.mockAttendance[rec.date][rec.employeeId] = { 
-                status: rec.status, time: rec.time, outTime: rec.outTime, workTime: rec.workTime, isBiometric: rec.isBiometric 
+                status: rec.status, time: rec.time, outTime: rec.outTime, workTime: rec.workTime, isBiometric: rec.isBiometric, isCoco: rec.isCoco
             };
         });
         return;
@@ -91,7 +93,7 @@ router.post('/', async (req, res, next) => {
         if (shouldUseMockStore()) {
             if (!mockStore.mockAttendance[record.date]) mockStore.mockAttendance[record.date] = {};
             mockStore.mockAttendance[record.date][record.employeeId] = { 
-                status: record.status, time: record.time, outTime: record.outTime, workTime: record.workTime, isBiometric: record.isBiometric 
+                status: record.status, time: record.time, outTime: record.outTime, workTime: record.workTime, isBiometric: record.isBiometric, isCoco: record.isCoco
             };
         } else {
             if (!(await ensurePersistentStore())) {

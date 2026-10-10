@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useWorkforce } from '../context/workforceShared';
 import { FileText, Lock, Unlock } from 'lucide-react';
 import { API_BASE } from '../context/workforceShared';
@@ -50,9 +51,26 @@ const normalizeTime = (value) => {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 };
 
-const getCocoTime = (record, pluralKey, singularKey) => {
+const getCocoTime = (record, pluralKey, singularKey, edge = 'first') => {
     const values = Array.isArray(record[pluralKey]) ? record[pluralKey] : [record[singularKey]];
-    return values.map(normalizeTime).find(Boolean) || '';
+    const times = values.map(normalizeTime).filter(Boolean);
+    return edge === 'last' ? times[times.length - 1] || '' : times[0] || '';
+};
+
+const calculateWorkTime = (inTime, outTime) => {
+    if (!inTime || !outTime) return '';
+
+    const toMinutes = value => {
+        const [hours, minutes] = value.split(':').map(Number);
+        return hours * 60 + minutes;
+    };
+
+    const checkInMinutes = toMinutes(inTime);
+    let checkOutMinutes = toMinutes(outTime);
+    if (checkOutMinutes < checkInMinutes) checkOutMinutes += 24 * 60;
+
+    const duration = checkOutMinutes - checkInMinutes;
+    return `${String(Math.floor(duration / 60)).padStart(2, '0')}:${String(duration % 60).padStart(2, '0')}`;
 };
 
 const isCocoPresent = (record) => {
@@ -68,6 +86,7 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isCocoSyncing, setIsCocoSyncing] = useState(false);
+    const [dialog, setDialog] = useState(null);
 
     const selectedDateAttendance = useMemo(() => attendance[selectedDate] || {}, [attendance, selectedDate]);
     const hasSavedAttendance = Object.keys(selectedDateAttendance).length > 0;
@@ -80,7 +99,8 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
             time: selectedDateAttendance[emp.id]?.time || emp.checkin || '09:00',
             outTime: selectedDateAttendance[emp.id]?.outTime || '',
             workTime: selectedDateAttendance[emp.id]?.workTime || '',
-            isBiometric: selectedDateAttendance[emp.id]?.isBiometric || false
+            isBiometric: selectedDateAttendance[emp.id]?.isBiometric || false,
+            isCoco: selectedDateAttendance[emp.id]?.isCoco || false
         }));
     }, [employees, selectedDateAttendance]);
 
@@ -91,6 +111,10 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
     
     const tempBulk = bulkDraft.key === bulkDraftKey ? bulkDraft.entries : bulkEntries;
     const isLocked = hasSavedAttendance && !isManuallyUnlocked;
+
+    const showNotice = (title, message) => {
+        setDialog({ mode: 'message', title, message, employees: [] });
+    };
 
     const updateTemp = (empId, fields) => {
         hasUserEditedRef.current = true;
@@ -164,13 +188,14 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                 time: item.time,
                 outTime: item.outTime,
                 workTime: item.workTime,
-                isBiometric: item.isBiometric
+                isBiometric: item.isBiometric,
+                isCoco: item.isCoco
             }));
         await saveBulkAttendance(records);
         setBulkDraft({ key: '', entries: [] }); // Clear draft so UI reflects saved DB state
         hasUserEditedRef.current = false;
         setIsManuallyUnlocked(false);
-        alert("Attendance saved!");
+        showNotice('Attendance saved', 'Attendance changes were saved successfully.');
     };
 
     const handleBiometricSync = async () => {
@@ -208,7 +233,8 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                                     outTime: syncedRecord.outTime || emp.outTime,
                                     workTime: syncedRecord.workTime || emp.workTime,
                                     status: syncedRecord.status || emp.status,
-                                    isBiometric: true
+                                    isBiometric: true,
+                                    isCoco: false
                                 };
                             }
                             return emp;
@@ -218,21 +244,40 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                     });
                     // Temporarily unlock the UI so the user can save the fetched data
                     setIsManuallyUnlocked(true);
-                    alert(`Fetched ${data.records.length} records! Review the table and click 'Save All Attendance' to update the database.`);
+                    showNotice('Biometric sync complete', `Fetched ${data.records.length} records. Review the table and click 'Save All Attendance' to update the database.`);
                 } else {
-                    alert('No biometric records found for this date.');
+                    showNotice('No biometric records', 'No biometric records were found for this date.');
                 }
             } else {
-                alert(`Sync failed (Status ${res.status}): ${data.error || 'Unknown error'}`);
+                showNotice('Biometric sync failed', `Sync failed (Status ${res.status}): ${data.error || 'Unknown error'}`);
             }
         } catch (e) {
             console.error('Error syncing biometric data:', e);
-            alert(`Error syncing biometric data: ${e.message}`);
+            showNotice('Biometric sync failed', `Error syncing biometric data: ${e.message}`);
         }
         setIsSyncing(false);
     };
 
-    const handleCocoSync = async () => {
+    const handleCocoSync = () => {
+        const weekOffEmployees = tempBulk
+            .filter(employee => employee.status?.trim().toLowerCase() === 'weekoff')
+            .map(employee => ({ id: employee.id, name: employee.name || 'Employee' }));
+
+        setDialog({
+            mode: 'confirm',
+            title: 'Confirm COCO sync',
+            date: selectedDate,
+            employees: weekOffEmployees,
+            message: 'COCO attendance will be checked for these Week Off employees.'
+        });
+    };
+
+    const confirmCocoSync = async () => {
+        if (dialog?.mode !== 'confirm') return;
+
+        const confirmation = dialog;
+        const { date, employees: weekOffEmployees } = confirmation;
+        setDialog({ ...confirmation, mode: 'loading', title: 'Syncing COCO attendance' });
         setIsCocoSyncing(true);
         try {
             const token = localStorage.getItem('wf_auth_token');
@@ -257,39 +302,30 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
 
             const cocoRecords = Array.isArray(data.records) ? data.records : [];
 
-            console.log('SmartSalary employee IDs:', employees.map(e => ({
-    id: e.id,
-    empId: e.empId,
-    name: e.name
-})));
-console.log('COCO records:', cocoRecords.map(r => ({
-    empId: r.empId,
-    name: r.name,
-    date: r.date,
-    checkIns: r.checkIns,
-    checkOuts: r.checkOuts,
-    weekOff: r.weekOff,
-    status: r.status
-})));
-
             const cocoByEmployeeId = new Map(
                 cocoRecords
-                    .filter(record => normalizeDate(record.date) === selectedDate)
+                    .filter(record => normalizeDate(record.date) === date)
                     .map(record => [String(record.empId || '').trim().toLowerCase(), record])
                     .filter(([employeeId]) => employeeId)
             );
 
-            const updates = tempBulk.filter(employee => employee.status?.toLowerCase() === 'weekoff')
+            const updates = weekOffEmployees
                 .map(employee => {
                     const record = cocoByEmployeeId.get(String(employee.id).trim().toLowerCase());
                     const time = record && isCocoPresent(record) ? getCocoTime(record, 'checkIns', 'checkIn') : '';
-                    const outTime = record && isCocoPresent(record) ? getCocoTime(record, 'checkOuts', 'checkOut') : '';
-                    return { id: employee.id, time, outTime };
+                    const outTime = record && isCocoPresent(record) ? getCocoTime(record, 'checkOuts', 'checkOut', 'last') : '';
+                    return { ...employee, time, outTime, workTime: calculateWorkTime(time, outTime) };
                 })
-                .filter(update => update.time && update.outTime);
+                .filter(update => update.time);
 
             if (!updates.length) {
-                alert('No valid COCO Present records matched Week Off attendance for this date. Existing attendance was not changed.');
+                setDialog({
+                    mode: 'result',
+                    title: 'No attendance updated',
+                    date,
+                    employees: [],
+                    message: 'No valid COCO Present records matched these Week Off employees for this date. Existing attendance was not changed.'
+                });
                 return;
             }
 
@@ -301,17 +337,29 @@ console.log('COCO records:', cocoRecords.map(r => ({
                     entries: currentEntries.map(employee => {
                         const update = updatesByEmployeeId.get(employee.id);
                         return update
-                            ? { ...employee, status: 'present', time: update.time, outTime: update.outTime }
+                            ? { ...employee, status: 'present', time: update.time, outTime: update.outTime, workTime: update.workTime, isBiometric: false, isCoco: true }
                             : employee;
                     })
                 };
             });
             hasUserEditedRef.current = true;
             setIsManuallyUnlocked(true);
-            alert(`Updated ${updates.length} Week Off record${updates.length === 1 ? '' : 's'} from COCO. Review the table and click 'Save All Attendance' to update the database.`);
+            setDialog({
+                mode: 'result',
+                title: 'COCO sync complete',
+                date,
+                employees: updates.map(({ id, name }) => ({ id, name })),
+                message: `Updated ${updates.length} Week Off record${updates.length === 1 ? '' : 's'} from COCO. Review the table and click 'Save All Attendance' to save the changes.`
+            });
         } catch (e) {
             console.error('Error syncing COCO attendance data:', e);
-            alert(`Error syncing COCO attendance data: ${e.message}`);
+            setDialog({
+                mode: 'result',
+                title: 'COCO sync failed',
+                date,
+                employees: [],
+                message: e.message || 'Unable to sync COCO attendance.'
+            });
         } finally {
             setIsCocoSyncing(false);
         }
@@ -342,10 +390,10 @@ console.log('COCO records:', cocoRecords.map(r => ({
                             <Unlock size={14} /> Edit
                         </button>
                     )}
-                    <button className="secondary-btn small-btn" onClick={handleBiometricSync} disabled={isSyncing} style={{ borderColor: '#3b82f6', color: '#3b82f6', padding: '0.25rem 0.75rem' }}>
+                    <button className="secondary-btn small-btn" onClick={handleBiometricSync} disabled={isSyncing || isCocoSyncing} style={{ borderColor: '#3b82f6', color: '#3b82f6', padding: '0.25rem 0.75rem' }}>
                         {isSyncing ? 'Syncing...' : 'Sync Biometric'}
                     </button>
-                    <button className="secondary-btn small-btn" onClick={handleCocoSync} disabled={isCocoSyncing} style={{ borderColor: '#8b5cf6', color: '#8b5cf6', padding: '0.25rem 0.75rem' }}>
+                    <button className="secondary-btn small-btn" onClick={handleCocoSync} disabled={isSyncing || isCocoSyncing} style={{ borderColor: '#8b5cf6', color: '#8b5cf6', padding: '0.25rem 0.75rem' }}>
                         {isCocoSyncing ? 'Syncing COCO...' : 'Sync COCO'}
                     </button>
                     <button className="secondary-btn small-btn" onClick={onOpenReport} style={{ borderColor: 'var(--primary)', color: 'var(--primary)', padding: '0.25rem 0.75rem' }}>
@@ -354,6 +402,7 @@ console.log('COCO records:', cocoRecords.map(r => ({
                     <input
                         type="date"
                         value={selectedDate}
+                        disabled={Boolean(dialog)}
                         onChange={(e) => {
                             hasUserEditedRef.current = false;
                             setIsManuallyUnlocked(false);
@@ -419,6 +468,9 @@ console.log('COCO records:', cocoRecords.map(r => ({
                             {emp.isBiometric && (
                                 <span style={{ fontSize: '0.7rem', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '12px' }}>Biometric</span>
                             )}
+                            {emp.isCoco && (
+                                <span style={{ fontSize: '0.7rem', background: '#8b5cf6', color: 'white', padding: '2px 6px', borderRadius: '12px' }}>COCO</span>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -427,6 +479,105 @@ console.log('COCO records:', cocoRecords.map(r => ({
                 <div className="action-row" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
                     <button className="primary-btn" style={{ width: '300px' }} onClick={handleSaveBulk}>Save All Attendance</button>
                 </div>
+            )}
+
+            {dialog && createPortal(
+                <div
+                    onMouseDown={event => {
+                        if (event.target === event.currentTarget && dialog.mode !== 'loading') {
+                            setDialog(null);
+                        }
+                    }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        width: '100vw',
+                        minHeight: '100vh',
+                        zIndex: 10000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '20px',
+                        boxSizing: 'border-box',
+                        background: 'rgba(15, 23, 42, 0.62)'
+                    }}
+                >
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="bulk-attendance-dialog-title"
+                        style={{
+                            width: '100%',
+                            maxWidth: '520px',
+                            maxHeight: '85vh',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
+                            color: 'var(--text-primary)',
+                            background: 'var(--card-bg)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '16px',
+                            boxShadow: '0 24px 64px rgba(0, 0, 0, 0.3)'
+                        }}
+                    >
+                        <div style={{ padding: '20px 22px 14px', borderBottom: '1px solid var(--border-color)' }}>
+                            <h2 id="bulk-attendance-dialog-title" style={{ margin: 0, fontSize: '1.1rem' }}>
+                                {dialog.mode === 'confirm' ? 'Confirm COCO sync' : dialog.mode === 'loading' ? 'Syncing COCO attendance' : dialog.title}
+                            </h2>
+                            {dialog.date && (
+                                <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                    Date: <strong style={{ color: 'var(--text-primary)' }}>{new Date(`${dialog.date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+                                </p>
+                            )}
+                        </div>
+
+                        <div style={{ padding: '18px 22px', overflowY: 'auto' }}>
+                            {dialog.message && (
+                                <p style={{ margin: '0 0 14px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                    {dialog.message}
+                                </p>
+                            )}
+                            {dialog.mode === 'loading' && (
+                                <p role="status" style={{ margin: '0 0 14px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                    Checking the selected date and employee IDs in COCO...
+                                </p>
+                            )}
+
+                            {dialog.employees?.length > 0 ? (
+                                <div style={{ display: 'grid', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                                    {dialog.employees.map(employee => (
+                                        <div key={employee.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', background: 'rgba(148, 163, 184, 0.1)', borderRadius: '10px' }}>
+                                            <span style={{ fontWeight: 600 }}>{employee.name}</span>
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>Emp ID: {employee.id}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                dialog.mode === 'confirm' && (
+                                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        No Week Off employees are currently listed for this date.
+                                    </p>
+                                )
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '14px 22px 20px', borderTop: '1px solid var(--border-color)' }}>
+                            {dialog.mode === 'confirm' ? (
+                                <>
+                                    <button className="secondary-btn small-btn" onClick={() => setDialog(null)}>Cancel</button>
+                                    <button className="primary-btn small-btn" onClick={confirmCocoSync} disabled={!dialog.employees.length}>
+                                        Confirm Sync
+                                    </button>
+                                </>
+                            ) : dialog.mode === 'loading' ? (
+                                <button className="primary-btn small-btn" disabled>Syncing...</button>
+                            ) : (
+                                <button className="primary-btn small-btn" onClick={() => setDialog(null)}>OK</button>
+                            )}
+                        </div>
+                    </section>
+                </div>,
+                document.body
             )}
         </div>
     );
