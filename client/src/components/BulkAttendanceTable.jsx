@@ -3,10 +3,119 @@ import { useWorkforce } from '../context/workforceShared';
 import { FileText, Lock, Unlock } from 'lucide-react';
 import { API_BASE } from '../context/workforceShared';
 
+const normalizeAttendanceDate = value => {
+    const date = String(value || '').trim();
+    const isoDate = date.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (isoDate) {
+        return `${isoDate[1]}-${isoDate[2].padStart(2, '0')}-${isoDate[3].padStart(2, '0')}`;
+    }
+
+    const localDate = date.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\D|$)/);
+    if (localDate) {
+        return `${localDate[3]}-${localDate[2].padStart(2, '0')}-${localDate[1].padStart(2, '0')}`;
+    }
+
+    const namedMonthDate = date.match(/^(\d{1,2})[\s/-]+([a-z]{3,})[\s/-]+(\d{4})/i);
+    if (namedMonthDate) {
+        const month = new Date(`${namedMonthDate[2]} 1, 2000`).getMonth() + 1;
+        if (month >= 1 && month <= 12) {
+            return `${namedMonthDate[3]}-${String(month).padStart(2, '0')}-${namedMonthDate[1].padStart(2, '0')}`;
+        }
+    }
+
+    return date;
+};
+
+const normalizeEmployeeId = value => String(value ?? '').trim().toLowerCase();
+
+const normalizeCocoTime = value => {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+    }
+    if (typeof value === 'number') {
+        if (value >= 1000000000) {
+            const timestamp = value >= 1000000000000 ? value : value * 1000;
+            return normalizeCocoTime(new Date(timestamp));
+        }
+        if (value >= 0 && value < 1) {
+            const minutesFromMidnight = Math.round(value * 24 * 60);
+            return `${String(Math.floor(minutesFromMidnight / 60) % 24).padStart(2, '0')}:${String(minutesFromMidnight % 60).padStart(2, '0')}`;
+        }
+    }
+
+    const text = String(value ?? '').trim();
+    if (/^\d{10}(?:\d{3})?$/.test(text)) {
+        const timestamp = Number(text);
+        return normalizeCocoTime(new Date(text.length === 13 ? timestamp : timestamp * 1000));
+    }
+    const match = text.match(/\b(\d{1,2})[:.](\d{2})(?::\d{2})?\s*(AM|PM)?\b/i);
+    const hourOnlyMatch = !match && text.match(/^\s*(\d{1,2})\s*(AM|PM)\s*$/i);
+    const compactTimeMatch = !match && !hourOnlyMatch && text.match(/^\s*(\d{1,2})(\d{2})\s*$/);
+    if (!match && !hourOnlyMatch && !compactTimeMatch) return '';
+
+    let hours = Number((match || hourOnlyMatch || compactTimeMatch)[1]);
+    const minutes = Number(match?.[2] || compactTimeMatch?.[2] || 0);
+    const meridiem = (match?.[3] || hourOnlyMatch?.[2])?.toUpperCase();
+    if (minutes > 59 || hours > (meridiem ? 12 : 23) || hours < (meridiem ? 1 : 0)) return '';
+    if (meridiem) hours = (hours % 12) + (meridiem === 'PM' ? 12 : 0);
+
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
+const flattenPunchValues = value => {
+    if (Array.isArray(value)) return value.flatMap(flattenPunchValues);
+    if (value && typeof value === 'object' && !(value instanceof Date)) {
+        const hour = value.hour ?? value.hours ?? value.hh;
+        const minute = value.minute ?? value.minutes ?? value.mm;
+        if (hour != null && minute != null) {
+            const meridiem = value.meridiem ?? value.ampm ?? '';
+            return [`${hour}:${String(minute).padStart(2, '0')} ${meridiem}`];
+        }
+        const timeFields = ['time', 'timeString', 'formattedTime', 'value', 'timestamp', 'dateTime', 'punchTime', 'checkIn', 'checkInTime', 'checkOut', 'checkOutTime'];
+        const knownTimeValues = timeFields.flatMap(field => value[field] == null ? [] : flattenPunchValues(value[field]));
+        return knownTimeValues.length ? knownTimeValues : Object.values(value).flatMap(flattenPunchValues);
+    }
+    return [value];
+};
+
+const getCocoPunchTime = (values, edge = 'first') => {
+    const candidates = flattenPunchValues(values)
+        .flatMap(value => typeof value === 'string' ? value.split(/[\n,|]+/) : [value])
+        .map(normalizeCocoTime)
+        .filter(Boolean);
+
+    return edge === 'last' ? candidates[candidates.length - 1] || '' : candidates[0] || '';
+};
+
+const getCocoRecordTime = (record, fields, edge = 'first') => {
+    const timeFieldPattern = edge === 'last'
+        ? /check.?out|out.?time|last.?out|punch.?out/i
+        : /check.?in|in.?time|first.?in|punch.?in/i;
+    const candidateFields = [...new Set([
+        ...fields,
+        ...Object.keys(record).filter(field => timeFieldPattern.test(field))
+    ])];
+
+    for (const field of candidateFields) {
+        const time = getCocoPunchTime(record[field], edge);
+        if (time) return time;
+    }
+    return '';
+};
+
+const getCocoRecordEmployeeId = record => {
+    const fields = ['empId', 'employeeId', 'employeeID', 'empCode', 'employeeCode', 'Empcode'];
+    const value = fields.map(field => record[field]).find(item => String(item ?? '').trim());
+    return normalizeEmployeeId(value);
+};
+
+const isWeekOff = status => String(status || '').trim().toLowerCase().replace(/[\s_-]/g, '') === 'weekoff';
+
 const BulkAttendanceTable = ({ onOpenReport }) => {
     const { employees, attendance, saveBulkAttendance } = useWorkforce();
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isCocoSyncing, setIsCocoSyncing] = useState(false);
 
     const selectedDateAttendance = useMemo(() => attendance[selectedDate] || {}, [attendance, selectedDate]);
     const hasSavedAttendance = Object.keys(selectedDateAttendance).length > 0;
@@ -171,6 +280,134 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
         setIsSyncing(false);
     };
 
+    const handleCocoSync = async () => {
+        setIsCocoSyncing(true);
+        try {
+            const token = localStorage.getItem('wf_auth_token');
+            const response = await fetch(`${API_BASE}/api/coco-attendance/preview`, {
+                method: 'GET',
+                cache: 'no-store',
+                headers: {
+                    Accept: 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                }
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error(`COCO returned an unexpected response (HTTP ${response.status}).`);
+            }
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || `COCO attendance request failed (HTTP ${response.status}).`);
+            }
+
+            const selectedDateRecords = (Array.isArray(data.records) ? data.records : []).filter(record => (
+                normalizeAttendanceDate(record.date ?? record.attendanceDate ?? record.attendance_date) === normalizeAttendanceDate(selectedDate)
+            ));
+            const cocoRecordsByEmployeeId = new Map();
+            const cocoByEmployeeId = new Map();
+            selectedDateRecords.forEach(record => {
+                const employeeId = getCocoRecordEmployeeId(record);
+                if (!employeeId) return;
+
+                const employeeRecords = cocoRecordsByEmployeeId.get(employeeId) || [];
+                employeeRecords.push(record);
+                cocoRecordsByEmployeeId.set(employeeId, employeeRecords);
+
+                const checkIn = getCocoRecordTime(record, ['checkIns', 'checkIn', 'checkInTime', 'check_in', 'inTime', 'in_time', 'firstIn', 'firstInTime', 'punchInTime', 'in'], 'first');
+                if (!checkIn) return;
+
+                const checkOut = getCocoRecordTime(record, ['checkOuts', 'checkOut', 'checkOutTime', 'check_out', 'outTime', 'out_time', 'lastOut', 'lastOutTime', 'punchOutTime', 'out'], 'last');
+                const previousPunches = cocoByEmployeeId.get(employeeId);
+                cocoByEmployeeId.set(employeeId, {
+                    time: previousPunches?.time || checkIn,
+                    outTime: checkOut || previousPunches?.outTime || ''
+                });
+            });
+
+            const weekOffEmployees = tempBulk.filter(employee => isWeekOff(employee.status));
+            const weekOffCheckResults = weekOffEmployees.map(employee => {
+                const employeeId = normalizeEmployeeId(employee.id);
+                const matchingCocoRows = cocoRecordsByEmployeeId.get(employeeId) || [];
+                const cocoPunches = cocoByEmployeeId.get(employeeId);
+
+                if (!cocoPunches) {
+                    const rawCheckInFields = matchingCocoRows
+                        .flatMap(record => Object.entries(record)
+                            .filter(([field, value]) => /check.?in|in.?time|first.?in|punch.?in/i.test(field) && value != null)
+                            .map(([field, value]) => `${field}=${JSON.stringify(value)}`))
+                        .slice(0, 4);
+                    const status = matchingCocoRows.length === 0
+                        ? 'No COCO row for selected date'
+                        : rawCheckInFields.length
+                            ? `COCO row found; no usable check-in (${rawCheckInFields.join('; ')})`
+                            : 'COCO row found; check-in value is blank';
+                    return { employee, update: null, status };
+                }
+
+                const update = {
+                        date: selectedDate,
+                        employeeId: employee.id,
+                        status: 'present',
+                        time: cocoPunches.time,
+                        outTime: cocoPunches.outTime || (employee.outTime === '--:--' ? '' : employee.outTime || ''),
+                        workTime: employee.workTime || '',
+                        isBiometric: false
+                };
+                const timeSummary = update.outTime
+                    ? `Updated: IN ${update.time}, OUT ${update.outTime}`
+                    : `Updated: IN ${update.time}`;
+                return { employee, update, status: timeSummary };
+            });
+            const updates = weekOffCheckResults
+                .map(result => result.update)
+                .filter(Boolean);
+
+            const employeeCheckReport = weekOffCheckResults.map(({ employee, status }) => (
+                `• ${employee.name || 'Employee'} (Emp ID: ${employee.id}): ${status}`
+            )).join('\n');
+
+            if (updates.length === 0) {
+                const noWeekOffRows = weekOffEmployees.length === 0
+                    ? 'No Week Off rows are currently shown for this date. Sync biometric first and confirm the Week Off status.'
+                    : 'No attendance was updated because none of the matched Week Off rows had a usable COCO check-in.';
+                alert(`Sync COCO checked ${weekOffEmployees.length} Week Off employee(s) for ${selectedDate}. ${noWeekOffRows}\nCOCO rows for selected date: ${selectedDateRecords.length}.\n\n${employeeCheckReport || 'No Week Off employees to check.'}`);
+                return;
+            }
+
+            const result = await saveBulkAttendance(updates);
+            const updatedByEmployeeId = new Map(updates.map(record => [normalizeEmployeeId(record.employeeId), record]));
+            setBulkDraft(previous => {
+                if (previous.key !== bulkDraftKey) return previous;
+                return {
+                    ...previous,
+                    entries: previous.entries.map(employee => {
+                        const update = updatedByEmployeeId.get(normalizeEmployeeId(employee.id));
+                        return update ? {
+                            ...employee,
+                            status: update.status,
+                            time: update.time,
+                            outTime: update.outTime,
+                            workTime: update.workTime
+                        } : employee;
+                    })
+                };
+            });
+            hasUserEditedRef.current = true;
+
+            alert(result?.queued
+                ? `Checked ${weekOffEmployees.length} Week Off employee(s). Updated ${updates.length}; changes are queued to sync.\n\n${employeeCheckReport}`
+                : `Checked ${weekOffEmployees.length} Week Off employee(s). Updated ${updates.length}; employees without a COCO check-in were left unchanged.\n\n${employeeCheckReport}`);
+        } catch (error) {
+            console.error('Error syncing COCO attendance:', error);
+            alert(`COCO sync failed: ${error.message}`);
+        } finally {
+            setIsCocoSyncing(false);
+        }
+    };
+
     return (
         <div className="card" style={{ marginBottom: '1.5rem' }}>
             <div className="ch" style={{ flexWrap: 'wrap', gap: '15px' }}>
@@ -196,11 +433,11 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
                             <Unlock size={14} /> Edit
                         </button>
                     )}
-                    <button className="secondary-btn small-btn" onClick={handleBiometricSync} disabled={isSyncing} style={{ borderColor: '#3b82f6', color: '#3b82f6', padding: '0.25rem 0.75rem' }}>
+                    <button className="secondary-btn small-btn" onClick={handleBiometricSync} disabled={isSyncing || isCocoSyncing} style={{ borderColor: '#3b82f6', color: '#3b82f6', padding: '0.25rem 0.75rem' }}>
                         {isSyncing ? 'Syncing...' : 'Sync Biometric'}
                     </button>
-                    <button className="secondary-btn small-btn" style={{ borderColor: '#8b5cf6', color: '#8b5cf6', padding: '0.25rem 0.75rem' }}>
-                        Sync COCO
+                    <button className="secondary-btn small-btn" onClick={handleCocoSync} disabled={isSyncing || isCocoSyncing} style={{ borderColor: '#8b5cf6', color: '#8b5cf6', padding: '0.25rem 0.75rem' }}>
+                        {isCocoSyncing ? 'Syncing...' : 'Sync COCO'}
                     </button>
                     <button className="secondary-btn small-btn" onClick={onOpenReport} style={{ borderColor: 'var(--primary)', color: 'var(--primary)', padding: '0.25rem 0.75rem' }}>
                         <FileText size={16} /> Monthly Report
@@ -287,3 +524,4 @@ const BulkAttendanceTable = ({ onOpenReport }) => {
 };
 
 export default BulkAttendanceTable;
+
