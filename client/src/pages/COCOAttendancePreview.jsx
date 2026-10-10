@@ -52,7 +52,7 @@ const COCOAttendancePreview = () => {
             setConnected(false);
             setError(
                 err.message?.includes('Failed to fetch')
-                    ? 'Cannot connect to COCO. Check that COCO is running at localhost:3001 and the preview API is available.'
+                    ? `Cannot reach COCO API: ${COCO_API}. Check network access and CORS settings.`
                     : err.message || 'Unable to fetch attendance.'
             );
         } finally {
