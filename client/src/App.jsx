@@ -15,13 +15,14 @@ import COCOPreview from './pages/COCOAttendancePreview';
 const App = () => {
     const { loading, token, logout } = useWorkforce();
     const [page, setPage] = useState('dashboard');
-
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
     useEffect(() => {
         const savedTheme = localStorage.getItem('wf_theme') || 'dark';
         document.documentElement.setAttribute('data-theme', savedTheme);
     }, []);
 
     const handleLogout = () => {
+         setShowLogoutConfirm(false);
         logout();
         setPage('dashboard');
     };
@@ -67,15 +68,94 @@ const App = () => {
             <div className="circle circle-2"></div>
 
             <div className="app">
-                <Sidebar activePage={page} setPage={setPage} onLogout={handleLogout} />
+                <Sidebar activePage={page} setPage={setPage} onLogout={() => setShowLogoutConfirm(true)} />
                 <main className="main">
-                    <Topbar activePage={page} onLogout={handleLogout} />
+                    <Topbar activePage={page} onLogout={() => setShowLogoutConfirm(true)} />
                     <div className={`content ${page === 'dashboard' ? 'content-dashboard' : ''}`}>
                         {renderPage()}
                     </div>
                 </main>
             </div>
-            
+          
+{showLogoutConfirm && (
+    <div
+        role="presentation"
+        onClick={() => setShowLogoutConfirm(false)}
+        style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)'
+        }}
+    >
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+                width: '100%',
+                maxWidth: '400px',
+                padding: '1.5rem',
+                borderRadius: '16px',
+                background: 'var(--card-bg, #1e293b)',
+                color: 'var(--text-color, #fff)',
+                border: '1px solid rgba(148, 163, 184, 0.2)',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
+            }}
+        >
+            <h2 id="logout-title" style={{ marginBottom: '0.75rem' }}>
+                Confirm Logout
+            </h2>
+
+            <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>
+                Are you sure you want to log out of Smart Salary?
+            </p>
+
+            <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '0.75rem'
+            }}>
+                <button
+                    type="button"
+                    onClick={() => setShowLogoutConfirm(false)}
+                    style={{
+                        padding: '0.65rem 1rem',
+                        borderRadius: '8px',
+                        border: '1px solid #475569',
+                        background: 'transparent',
+                        color: 'inherit',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    onClick={handleLogout}
+                    style={{
+                        padding: '0.65rem 1rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: '#dc2626',
+                        color: '#fff',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Logout
+                </button>
+            </div>
+        </div>
+    </div>
+)}
+
             <div className="toast" id="toast"></div>
         </div>
     );

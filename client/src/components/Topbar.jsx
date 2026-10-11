@@ -6,7 +6,8 @@ const Topbar = ({ activePage }) => {
     'dashboard': 'Dashboard',
     'employees': 'Employees',
     'attendance': 'Attendance',
-    'calculator': 'Salary Calculator'
+    'calculator': 'Salary Calculator',
+    'coco-preview': 'COCO Preview',
   };
 
   const changeTheme = (theme) => {

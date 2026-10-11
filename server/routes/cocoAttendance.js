@@ -9,10 +9,47 @@ const COCO_PREVIEW_URL =
 
 router.get('/preview', async (req, res) => {
     try {
+        const username = process.env.COCO_ADMIN_USERNAME;
+        const password = process.env.COCO_ADMIN_PASSWORD;
+
+        if (!username || !password) {
+            return res.status(500).json({
+                success: false,
+                error: 'COCO admin credentials are not configured.'
+            });
+        }
+
+        const loginUrl = new URL('/api/auth/login', COCO_PREVIEW_URL).toString();
+
+        const login = await axios.post(
+            loginUrl,
+            { username, password },
+            {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000
+            }
+        );
+
+        const cookies = login.headers['set-cookie'] || [];
+        const sessionCookie = cookies
+            .map(cookie => cookie.split(';')[0])
+            .find(cookie => cookie.startsWith('coco_admin_session='));
+
+        if (!login.data?.success || !sessionCookie) {
+            return res.status(502).json({
+                success: false,
+                error: 'COCO login did not return a valid session.'
+            });
+        }
+
         const upstream = await axios.get(COCO_PREVIEW_URL, {
-            headers: { Accept: 'application/json' },
+            headers: {
+                Accept: 'application/json',
+                Cookie: sessionCookie
+            },
             timeout: 15000
         });
+
 
         if (
             !upstream.data ||
