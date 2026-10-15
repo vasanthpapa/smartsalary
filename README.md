@@ -38,7 +38,7 @@ Frontend env example:
 
 See [`client/.env.example`](client/.env.example).
 
-For production on Vercel:
+For production on Vercel, the frontend defaults to the Render API URL below. Set this variable in Vercel to override it when using a different backend:
 
 ```env
 VITE_API_BASE_URL=https://your-render-backend-url.onrender.com
@@ -77,7 +77,7 @@ Settings:
 - Build Command: `npm run build`
 - Output Directory: `dist`
 
-Required environment variable:
+Optional environment variable (overrides the frontend's default Render API URL):
 
 - `VITE_API_BASE_URL=https://your-render-backend-url.onrender.com`
 
